@@ -43,10 +43,10 @@ After setting up the environment variables:
    # Paste it in your Supabase SQL Editor and run it
    ```
 
-2. **Setup demo users:**
+2. **Setup demo data:**
    - Go to your login page
    - Click "Setup Demo Users" button
-   - This will create all demo users with correct IDs
+   - This will create demo buildings, members, and flats
 
 ## Troubleshooting
 
@@ -56,13 +56,19 @@ After setting up the environment variables:
 - Restart your development server after creating `.env.local`
 
 ### "Service role key not found" Error
-- The service role key is required for admin operations (creating users)
+- The service role key is required for admin operations (bypassing RLS)
 - Make sure `NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY` is set in `.env.local`
+- Note: This key should NOT have the `NEXT_PUBLIC_` prefix for security
 
 ### Environment Variables Not Loading
 - Ensure the file is named exactly `.env.local` (not `.env`)
 - Restart your development server
 - Check that the file is in the project root directory
+
+### "Missing Supabase environment variables" Error
+- Verify all three variables are set in `.env.local`
+- Check for typos in variable names
+- Restart the development server after adding environment variables
 
 ## Security Notes
 
@@ -70,9 +76,20 @@ After setting up the environment variables:
 - The `.env.local` file is already in `.gitignore`
 - `NEXT_PUBLIC_` variables are exposed to the browser
 - `NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY` should be kept secret (server-side only)
+- The service role key bypasses RLS policies and should be used carefully
 
 ## Testing
 
-After setup, you can test the login with:
-- Email: `superadmin@example.com`
-- Password: `password123` 
+After setup, you can test the database connection by visiting:
+- `/api/test-db` - Test database queries
+- `/api/setup-demo-users` - Create demo data
+
+## Quick Setup Checklist
+
+1. ✅ Create Supabase project
+2. ✅ Copy environment variables to `.env.local`
+3. ✅ Restart development server
+4. ✅ Run database schema in Supabase SQL Editor
+5. ✅ Test database connection at `/api/test-db`
+6. ✅ Setup demo data at `/api/setup-demo-users`
+7. ✅ Test resident dashboard at `/resident/dashboard` 

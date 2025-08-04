@@ -64,7 +64,7 @@ Create a `.env.local` file in the root directory:
 # Supabase Configuration
 NEXT_PUBLIC_SUPABASE_URL=your-supabase-project-url
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your-supabase-anon-key
-NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY=your-supabase-service-role-key
+NEXT_PUBLIC_NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY=your-supabase-service-role-key
 
 # App Configuration
 NEXT_PUBLIC_APP_URL=http://localhost:3000
@@ -172,7 +172,7 @@ For testing purposes, you can use these demo accounts:
 ```env
 NEXT_PUBLIC_SUPABASE_URL=your-production-supabase-url
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your-production-anon-key
-NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY=your-production-service-role-key
+NEXT_PUBLIC_NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY=your-production-service-role-key
 NEXT_PUBLIC_APP_URL=https://yourdomain.com
 ```
 

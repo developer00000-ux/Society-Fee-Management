@@ -2,27 +2,23 @@
 
 import React, { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { getFlats, createFlat, updateFlat, deleteFlat, getBlocks, getMembers } from '@/lib/database'
-import { Flat, Block, Member } from '@/types/database'
+import { getFlats, createFlat, updateFlat, deleteFlat } from '@/lib/database'
+import { Flat, FlatStatus } from '@/types/database'
 import Navbar from '../../components/Navbar'
-
-interface FlatWithRelations extends Flat {
-  blocks: { block_name: string }
-  members: { name: string } | null
-}
+import ProtectedRoute from '../../components/ProtectedRoute'
 
 export default function FlatsPage() {
-  const [flats, setFlats] = useState<FlatWithRelations[]>([])
-  const [blocks, setBlocks] = useState<Block[]>([])
-  const [members, setMembers] = useState<Member[]>([])
+  const [flats, setFlats] = useState<Flat[]>([])
   const [loading, setLoading] = useState(false)
   const [showForm, setShowForm] = useState(false)
   const [editingFlat, setEditingFlat] = useState<Flat | null>(null)
   const [formData, setFormData] = useState({
     flat_number: '',
-    block_id: '',
-    member_id: '',
-    floor_number: ''
+    floor_id: '',
+    flat_type: '',
+    status: 'vacant' as FlatStatus,
+    monthly_rent: '',
+    security_deposit: ''
   })
 
   useEffect(() => {
@@ -31,14 +27,8 @@ export default function FlatsPage() {
 
   const loadData = async () => {
     try {
-      const [flatsData, blocksData, membersData] = await Promise.all([
-        getFlats(),
-        getBlocks(),
-        getMembers()
-      ])
+      const flatsData = await getFlats()
       setFlats(flatsData)
-      setBlocks(blocksData)
-      setMembers(membersData)
     } catch (error) {
       console.error('Error loading data:', error)
     }
@@ -51,9 +41,11 @@ export default function FlatsPage() {
     try {
       const flatData = {
         flat_number: formData.flat_number,
-        block_id: formData.block_id,
-        member_id: formData.member_id || null,
-        floor_number: formData.floor_number ? parseInt(formData.floor_number) : null
+        floor_id: formData.floor_id,
+        flat_type: formData.flat_type,
+        status: formData.status,
+        monthly_rent: parseFloat(formData.monthly_rent) || 0,
+        security_deposit: parseFloat(formData.security_deposit) || 0
       }
 
       if (editingFlat) {
@@ -62,7 +54,7 @@ export default function FlatsPage() {
         await createFlat(flatData)
       }
 
-      setFormData({ flat_number: '', block_id: '', member_id: '', floor_number: '' })
+      setFormData({ flat_number: '', floor_id: '', flat_type: '', status: 'vacant' as FlatStatus, monthly_rent: '', security_deposit: '' })
       setEditingFlat(null)
       setShowForm(false)
       await loadData()
@@ -78,9 +70,11 @@ export default function FlatsPage() {
     setEditingFlat(flat)
     setFormData({
       flat_number: flat.flat_number,
-      block_id: flat.block_id,
-      member_id: flat.member_id || '',
-      floor_number: flat.floor_number?.toString() || ''
+      floor_id: flat.floor_id,
+      flat_type: flat.flat_type,
+      status: flat.status,
+      monthly_rent: flat.monthly_rent.toString(),
+      security_deposit: flat.security_deposit.toString()
     })
     setShowForm(true)
   }
@@ -98,13 +92,14 @@ export default function FlatsPage() {
   }
 
   const handleCancel = () => {
-    setFormData({ flat_number: '', block_id: '', member_id: '', floor_number: '' })
+    setFormData({ flat_number: '', floor_id: '', flat_type: '', status: 'vacant' as FlatStatus, monthly_rent: '', security_deposit: '' })
     setEditingFlat(null)
     setShowForm(false)
   }
 
   return (
-    <div>
+    <ProtectedRoute requiredRoles={['super_admin', 'colony_admin', 'block_manager']}>
+      <div>
       <Navbar />
       <div className="max-w-4xl mx-auto p-6">
         <div className="flex items-center justify-between mb-6">
@@ -114,180 +109,187 @@ export default function FlatsPage() {
           </Link>
         </div>
 
-      {/* Add Flat Button */}
-      {!showForm && (
-        <button
-          onClick={() => setShowForm(true)}
-          className="mb-6 bg-purple-600 text-white px-4 py-2 rounded-md hover:bg-purple-700 transition-colors"
-        >
-          Add New Flat
-        </button>
-      )}
+        {!showForm && (
+          <button
+            onClick={() => setShowForm(true)}
+            className="mb-6 bg-purple-600 text-white px-4 py-2 rounded-md hover:bg-purple-700 transition-colors"
+          >
+            Add New Flat
+          </button>
+        )}
 
-      {/* Add/Edit Form */}
-      {showForm && (
-        <div className="bg-white border border-gray-200 rounded-lg p-6 mb-6">
-          <h2 className="text-xl font-semibold mb-4">
-            {editingFlat ? 'Edit Flat' : 'Add New Flat'}
-          </h2>
-          <form onSubmit={handleSubmit}>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              <div>
-                <label className="block text-sm font-medium mb-2">Flat Number</label>
-                <input
-                  type="text"
-                  value={formData.flat_number}
-                  onChange={(e) => setFormData(prev => ({ ...prev, flat_number: e.target.value }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-400"
-                  placeholder="Enter flat number"
-                  required
-                />
+        {showForm && (
+          <div className="bg-white border border-gray-200 rounded-lg p-6 mb-6">
+            <h2 className="text-xl font-semibold mb-4">
+              {editingFlat ? 'Edit Flat' : 'Add New Flat'}
+            </h2>
+            <form onSubmit={handleSubmit}>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-sm font-medium mb-2">Flat Number</label>
+                  <input
+                    type="text"
+                    value={formData.flat_number}
+                    onChange={(e) => setFormData(prev => ({ ...prev, flat_number: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-400"
+                    placeholder="Enter flat number"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-2">Floor ID</label>
+                  <input
+                    type="text"
+                    value={formData.floor_id}
+                    onChange={(e) => setFormData(prev => ({ ...prev, floor_id: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-400"
+                    placeholder="Enter floor ID"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-2">Flat Type</label>
+                  <input
+                    type="text"
+                    value={formData.flat_type}
+                    onChange={(e) => setFormData(prev => ({ ...prev, flat_type: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-400"
+                    placeholder="1BHK, 2BHK, etc."
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-2">Status</label>
+                  <select
+                    value={formData.status}
+                    onChange={(e) => setFormData(prev => ({ ...prev, status: e.target.value as FlatStatus }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-400"
+                    required
+                  >
+                    <option value="vacant">Vacant</option>
+                    <option value="occupied">Occupied</option>
+                    <option value="rented">Rented</option>
+                    <option value="maintenance">Maintenance</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-2">Monthly Rent</label>
+                  <input
+                    type="number"
+                    value={formData.monthly_rent}
+                    onChange={(e) => setFormData(prev => ({ ...prev, monthly_rent: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-400"
+                    placeholder="Monthly rent amount"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-2">Security Deposit</label>
+                  <input
+                    type="number"
+                    value={formData.security_deposit}
+                    onChange={(e) => setFormData(prev => ({ ...prev, security_deposit: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-400"
+                    placeholder="Security deposit amount"
+                    required
+                  />
+                </div>
               </div>
-              <div>
-                <label className="block text-sm font-medium mb-2">Block</label>
-                <select
-                  value={formData.block_id}
-                  onChange={(e) => setFormData(prev => ({ ...prev, block_id: e.target.value }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-400"
-                  required
+              <div className="flex gap-3 mt-4">
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="bg-purple-600 text-white px-4 py-2 rounded-md hover:bg-purple-700 transition-colors disabled:bg-gray-400"
                 >
-                  <option value="">Select Block</option>
-                  {blocks.map(block => (
-                    <option key={block.id} value={block.id}>
-                      Block {block.block_name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-2">Member</label>
-                <select
-                  value={formData.member_id}
-                  onChange={(e) => setFormData(prev => ({ ...prev, member_id: e.target.value }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-400"
+                  {loading ? 'Saving...' : (editingFlat ? 'Update Flat' : 'Add Flat')}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCancel}
+                  className="bg-gray-300 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-400 transition-colors"
                 >
-                  <option value="">Select Member (Optional)</option>
-                  {members.map(member => (
-                    <option key={member.id} value={member.id}>
-                      {member.name}
-                    </option>
-                  ))}
-                </select>
+                  Cancel
+                </button>
               </div>
-              <div>
-                <label className="block text-sm font-medium mb-2">Floor Number</label>
-                <input
-                  type="number"
-                  value={formData.floor_number}
-                  onChange={(e) => setFormData(prev => ({ ...prev, floor_number: e.target.value }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-400"
-                  placeholder="Floor number"
-                />
-              </div>
-            </div>
-            <div className="flex gap-3 mt-4">
-              <button
-                type="submit"
-                disabled={loading}
-                className="bg-purple-600 text-white px-4 py-2 rounded-md hover:bg-purple-700 transition-colors disabled:bg-gray-400"
-              >
-                {loading ? 'Saving...' : (editingFlat ? 'Update Flat' : 'Add Flat')}
-              </button>
-              <button
-                type="button"
-                onClick={handleCancel}
-                className="bg-gray-300 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-400 transition-colors"
-              >
-                Cancel
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
+            </form>
+          </div>
+        )}
 
-      {/* Flats List */}
-      <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
-        <div className="px-6 py-4 border-b border-gray-200">
-          <h2 className="text-lg font-semibold">Existing Flats</h2>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Flat Number
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Block
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Member
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Floor
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Created
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Actions
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {flats.map((flat) => (
-                <tr key={flat.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className="text-sm font-medium text-gray-900">
-                      {flat.flat_number}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className="text-sm text-gray-500">
-                      Block {flat.blocks.block_name}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className="text-sm text-gray-500">
-                      {flat.members?.name || '-'}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className="text-sm text-gray-500">
-                      {flat.floor_number || '-'}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className="text-sm text-gray-500">
-                      {new Date(flat.created_at).toLocaleDateString()}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                    <button
-                      onClick={() => handleEdit(flat)}
-                      className="text-blue-600 hover:text-blue-900 mr-4"
-                    >
-                      Edit
-                    </button>
-                    <button
-                      onClick={() => handleDelete(flat.id)}
-                      className="text-red-600 hover:text-red-900"
-                    >
-                      Delete
-                    </button>
-                  </td>
+        <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
+          <div className="px-6 py-4 border-b border-gray-200">
+            <h2 className="text-lg font-semibold">Existing Flats</h2>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Flat Number
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Floor ID
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Type
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Status
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Rent
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Actions
+                  </th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-          {flats.length === 0 && (
-            <div className="px-6 py-8 text-center text-gray-500">
-              No flats found. Add your first flat to get started.
-            </div>
-          )}
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {flats.map((flat) => (
+                  <tr key={flat.id} className="hover:bg-gray-50">
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm font-medium text-gray-900">{flat.flat_number}</div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm text-gray-900">{flat.floor_id}</div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm text-gray-900">{flat.flat_type}</div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                        flat.status === 'vacant' ? 'bg-green-100 text-green-800' :
+                        flat.status === 'occupied' ? 'bg-blue-100 text-blue-800' :
+                        flat.status === 'rented' ? 'bg-yellow-100 text-yellow-800' :
+                        'bg-red-100 text-red-800'
+                      }`}>
+                        {flat.status}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm text-gray-900">₹{flat.monthly_rent}</div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                      <button
+                        onClick={() => handleEdit(flat)}
+                        className="text-purple-600 hover:text-purple-900 mr-3"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => handleDelete(flat.id)}
+                        className="text-red-600 hover:text-red-900"
+                      >
+                        Delete
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
-      </div>
       </div>
     </div>
+    </ProtectedRoute>
   )
-} 
+}

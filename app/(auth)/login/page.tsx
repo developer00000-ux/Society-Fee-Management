@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/lib/contexts/AuthContext'
 import { getRoleBasedRedirect } from '@/lib/auth'
@@ -15,8 +15,17 @@ export default function LoginPage() {
   const [error, setError] = useState('')
   const [setupLoading, setSetupLoading] = useState(false)
   const [setupMessage, setSetupMessage] = useState('')
-  const { signIn, user } = useAuth()
+  const { signIn, user, loading: authLoading } = useAuth()
   const router = useRouter()
+
+  // Redirect if user is already logged in
+  useEffect(() => {
+    if (!authLoading && user) {
+      console.log('User already logged in, redirecting:', { userRole: user.role, userEmail: user.email })
+      const redirectPath = getRoleBasedRedirect(user.role)
+      router.replace(redirectPath)
+    }
+  }, [user, authLoading, router])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -24,13 +33,16 @@ export default function LoginPage() {
     setError('')
 
     try {
-      await signIn(credentials)
-      // The auth context will handle the user state
-      // Redirect will be handled by the auth context or middleware
-      router.push('/admin')
+      const authUser = await signIn(credentials)
+      if (authUser && authUser.role) {
+        const redirectPath = getRoleBasedRedirect(authUser.role)
+        console.log('Login successful, redirecting to:', redirectPath)
+        router.replace(redirectPath)
+      } else {
+        router.replace('/')
+      }
     } catch (error) {
       setError(error instanceof Error ? error.message : 'Login failed')
-    } finally {
       setLoading(false)
     }
   }
@@ -66,6 +78,15 @@ export default function LoginPage() {
     } finally {
       setSetupLoading(false)
     }
+  }
+
+  // Show loading spinner while checking authentication
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
+      </div>
+    )
   }
 
   return (

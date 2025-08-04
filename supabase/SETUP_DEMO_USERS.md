@@ -45,7 +45,7 @@ This happens because the `user_profiles` table has a foreign key constraint that
 2. **Set environment variables**
    ```bash
    export SUPABASE_URL="your-supabase-url"
-   export NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY="your-service-role-key"
+   export NEXT_PUBLIC_NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY="your-service-role-key"
    ```
 
 3. **Run the script**

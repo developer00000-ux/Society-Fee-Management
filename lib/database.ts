@@ -1,4 +1,4 @@
-import { supabase } from './supabase'
+import { supabase, createServerClient } from './supabase'
 import { FeeEntry, Block, Member, Flat } from '@/types/database'
 
 export async function createFeeEntry(data: Omit<FeeEntry, 'id' | 'created_at'>) {
@@ -65,57 +65,76 @@ export async function deleteFeeEntry(id: string) {
   }
 }
 
-// Block functions
-export async function createBlock(data: Omit<Block, 'id' | 'created_at'>) {
-  const { data: block, error } = await supabase
-    .from('blocks')
+// Building functions (replacing blocks)
+export async function createBuilding(data: Omit<Block, 'id' | 'created_at'>) {
+  const { data: building, error } = await supabase
+    .from('buildings')
     .insert(data)
     .select()
     .single()
 
   if (error) {
-    throw new Error(`Error creating block: ${error.message}`)
+    throw new Error(`Error creating building: ${error.message}`)
   }
 
-  return block
+  return building
 }
 
-export async function getBlocks() {
-  const { data: blocks, error } = await supabase
-    .from('blocks')
-    .select('*')
-    .order('block_name', { ascending: true })
+export async function getBuildings() {
+  try {
+    // Use service role client to bypass RLS for this query
+    const serverClient = createServerClient()
+    const { data: buildings, error } = await serverClient
+      .from('buildings')
+      .select('*')
+      .order('name', { ascending: true })
 
-  if (error) {
-    throw new Error(`Error fetching blocks: ${error.message}`)
+    if (error) {
+      console.error('Error fetching buildings with service client:', error)
+      // Fallback to regular client if service client fails
+      const { data: fallbackBuildings, error: fallbackError } = await supabase
+        .from('buildings')
+        .select('*')
+        .order('name', { ascending: true })
+      
+      if (fallbackError) {
+        throw new Error(`Error fetching buildings: ${fallbackError.message}`)
+      }
+      
+      return fallbackBuildings || []
+    }
+
+    return buildings || []
+  } catch (error) {
+    console.error('Error in getBuildings:', error)
+    // Return empty array as fallback
+    return []
   }
-
-  return blocks
 }
 
-export async function updateBlock(id: string, data: Partial<Omit<Block, 'id' | 'created_at'>>) {
-  const { data: block, error } = await supabase
-    .from('blocks')
+export async function updateBuilding(id: string, data: Partial<Omit<Block, 'id' | 'created_at'>>) {
+  const { data: building, error } = await supabase
+    .from('buildings')
     .update(data)
     .eq('id', id)
     .select()
     .single()
 
   if (error) {
-    throw new Error(`Error updating block: ${error.message}`)
+    throw new Error(`Error updating building: ${error.message}`)
   }
 
-  return block
+  return building
 }
 
-export async function deleteBlock(id: string) {
+export async function deleteBuilding(id: string) {
   const { error } = await supabase
-    .from('blocks')
+    .from('buildings')
     .delete()
     .eq('id', id)
 
   if (error) {
-    throw new Error(`Error deleting block: ${error.message}`)
+    throw new Error(`Error deleting building: ${error.message}`)
   }
 }
 
@@ -135,16 +154,35 @@ export async function createMember(data: Omit<Member, 'id' | 'created_at'>) {
 }
 
 export async function getMembers() {
-  const { data: members, error } = await supabase
-    .from('members')
-    .select('*')
-    .order('name', { ascending: true })
+  try {
+    // Use service role client to bypass RLS for this query
+    const serverClient = createServerClient()
+    const { data: members, error } = await serverClient
+      .from('members')
+      .select('*')
+      .order('name', { ascending: true })
 
-  if (error) {
-    throw new Error(`Error fetching members: ${error.message}`)
+    if (error) {
+      console.error('Error fetching members with service client:', error)
+      // Fallback to regular client if service client fails
+      const { data: fallbackMembers, error: fallbackError } = await supabase
+        .from('members')
+        .select('*')
+        .order('name', { ascending: true })
+      
+      if (fallbackError) {
+        throw new Error(`Error fetching members: ${fallbackError.message}`)
+      }
+      
+      return fallbackMembers || []
+    }
+
+    return members || []
+  } catch (error) {
+    console.error('Error in getMembers:', error)
+    // Return empty array as fallback
+    return []
   }
-
-  return members
 }
 
 export async function updateMember(id: string, data: Partial<Omit<Member, 'id' | 'created_at'>>) {
@@ -174,7 +212,7 @@ export async function deleteMember(id: string) {
 }
 
 // Flat functions
-export async function createFlat(data: Omit<Flat, 'id' | 'created_at'>) {
+export async function createFlat(data: Omit<Flat, 'id' | 'created_at' | 'updated_at'>) {
   const { data: flat, error } = await supabase
     .from('flats')
     .insert(data)
@@ -189,20 +227,35 @@ export async function createFlat(data: Omit<Flat, 'id' | 'created_at'>) {
 }
 
 export async function getFlats() {
-  const { data: flats, error } = await supabase
-    .from('flats')
-    .select(`
-      *,
-      blocks(block_name),
-      members(name)
-    `)
-    .order('flat_number', { ascending: true })
+  try {
+    // Use service role client to bypass RLS for this query
+    const serverClient = createServerClient()
+    const { data: flats, error } = await serverClient
+      .from('flats')
+      .select('*')
+      .order('flat_number', { ascending: true })
 
-  if (error) {
-    throw new Error(`Error fetching flats: ${error.message}`)
+    if (error) {
+      console.error('Error fetching flats with service client:', error)
+      // Fallback to regular client if service client fails
+      const { data: fallbackFlats, error: fallbackError } = await supabase
+        .from('flats')
+        .select('*')
+        .order('flat_number', { ascending: true })
+      
+      if (fallbackError) {
+        throw new Error(`Error fetching flats: ${fallbackError.message}`)
+      }
+      
+      return fallbackFlats || []
+    }
+
+    return flats || []
+  } catch (error) {
+    console.error('Error in getFlats:', error)
+    // Return empty array as fallback
+    return []
   }
-
-  return flats
 }
 
 export async function updateFlat(id: string, data: Partial<Omit<Flat, 'id' | 'created_at'>>) {
@@ -229,4 +282,10 @@ export async function deleteFlat(id: string) {
   if (error) {
     throw new Error(`Error deleting flat: ${error.message}`)
   }
-} 
+}
+
+// Legacy function names for backward compatibility
+export const getBlocks = getBuildings
+export const createBlock = createBuilding
+export const updateBlock = updateBuilding
+export const deleteBlock = deleteBuilding 

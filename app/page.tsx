@@ -11,8 +11,10 @@ export default function HomePage() {
 
   useEffect(() => {
     if (!loading && user) {
+      console.log('Main page redirect:', { userRole: user.role, userEmail: user.email })
       const redirectPath = getRoleBasedRedirect(user.role)
-      router.push(redirectPath)
+      console.log('Redirecting to:', redirectPath)
+      router.replace(redirectPath)
     }
   }, [user, loading, router])
 
@@ -29,6 +31,7 @@ export default function HomePage() {
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <h2 className="text-2xl font-bold text-gray-900">Redirecting to dashboard...</h2>
+          <p className="text-gray-600 mt-2">Please wait...</p>
         </div>
       </div>
     )

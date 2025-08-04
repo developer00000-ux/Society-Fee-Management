@@ -35,7 +35,7 @@ export function getRoleBasedRedirect(role: UserRole): string {
     case 'block_manager':
       return '/block-manager/dashboard'
     case 'resident':
-      return '/resident/dashboard'
+      return '/entries'
     default:
       return '/login'
   }

@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { getMembers, createMember, updateMember, deleteMember } from '@/lib/database'
 import { Member } from '@/types/database'
 import Navbar from '../../components/Navbar'
+import ProtectedRoute from '../../components/ProtectedRoute'
 
 export default function MembersPage() {
   const [members, setMembers] = useState<Member[]>([])
@@ -88,9 +89,10 @@ export default function MembersPage() {
   }
 
   return (
-    <div>
-      <Navbar />
-      <div className="max-w-4xl mx-auto p-6">
+    <ProtectedRoute requiredRoles={['super_admin', 'colony_admin', 'block_manager']}>
+      <div>
+        <Navbar />
+        <div className="max-w-4xl mx-auto p-6">
         <div className="flex items-center justify-between mb-6">
           <h1 className="text-3xl font-bold">Members Management</h1>
           <Link href="/admin" className="text-gray-600 hover:text-gray-800">
@@ -241,8 +243,9 @@ export default function MembersPage() {
             </div>
           )}
         </div>
-      </div>
+              </div>
       </div>
     </div>
+    </ProtectedRoute>
   )
 } 

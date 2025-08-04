@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react'
 import FeeTable from './FeeTable'
 import { createFeeEntry, getFeeEntries, getBlocks, getMembers, getFlats } from '@/lib/database'
-import { FeeEntry, Block, Member, Flat } from '@/types/database'
+import { FeeEntry, Building, Member, Flat } from '@/types/database'
 
 interface LocalFeeEntry {
   id: string
@@ -31,7 +31,7 @@ export default function UserForm() {
 
   const [entries, setEntries] = useState<LocalFeeEntry[]>([])
   const [loading, setLoading] = useState(false)
-  const [blocks, setBlocks] = useState<Block[]>([])
+  const [buildings, setBuildings] = useState<Building[]>([])
   const [members, setMembers] = useState<Member[]>([])
   const [flats, setFlats] = useState<Flat[]>([])
 
@@ -47,12 +47,12 @@ export default function UserForm() {
 
   const loadData = async () => {
     try {
-      const [blocksData, membersData, flatsData] = await Promise.all([
+      const [buildingsData, membersData, flatsData] = await Promise.all([
         getBlocks(),
         getMembers(),
         getFlats()
       ])
-      setBlocks(blocksData)
+      setBuildings(buildingsData)
       setMembers(membersData)
       setFlats(flatsData)
     } catch (error) {
@@ -208,18 +208,18 @@ export default function UserForm() {
       
       <form onSubmit={handleSubmit} className="bg-white border border-gray-200 rounded-lg p-6 mb-8">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* Block Dropdown */}
+          {/* Building Dropdown */}
           <div>
-            <label className="block text-sm font-medium mb-2">Block</label>
+            <label className="block text-sm font-medium mb-2">Building</label>
             <select
               value={formData.block}
               onChange={(e) => handleInputChange('block', e.target.value)}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-gray-400"
               required
             >
-              <option value="">Select Block</option>
-              {blocks.map(block => (
-                <option key={block.id} value={block.block_name}>Block {block.block_name}</option>
+              <option value="">Select Building</option>
+              {buildings.map(building => (
+                <option key={building.id} value={building.name}>{building.name}</option>
               ))}
             </select>
           </div>

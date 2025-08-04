@@ -21,12 +21,21 @@ export default function ProtectedRoute({
 
   useEffect(() => {
     if (!loading) {
+      console.log('ProtectedRoute check:', {
+        hasUser: !!user,
+        userRole: user?.role,
+        requiredRoles,
+        hasRequiredRole: hasRole(requiredRoles)
+      })
+      
       if (!user) {
+        console.log('No user, redirecting to login')
         router.push('/login')
         return
       }
 
       if (requiredRoles.length > 0 && !hasRole(requiredRoles)) {
+        console.log('User does not have required roles, redirecting to unauthorized')
         router.push('/unauthorized')
         return
       }
