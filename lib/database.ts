@@ -1,5 +1,5 @@
 import { supabase, createServerClient } from './supabase'
-import { FeeEntry, Block, Member, Flat } from '@/types/database'
+import { FeeEntry, Block, Member, Flat, FeeType } from '@/types/database'
 
 export async function createFeeEntry(data: Omit<FeeEntry, 'id' | 'created_at'>) {
   
@@ -509,3 +509,111 @@ export const getBlocksLegacy = getBuildings
 export const createBlockLegacy = createBuilding
 export const updateBlockLegacy = updateBuilding
 export const deleteBlockLegacy = deleteBuilding 
+
+// Fee Type functions
+export async function createFeeType(data: Omit<FeeType, 'id' | 'created_at' | 'updated_at'>) {
+  try {
+    // Use service role client to bypass RLS
+    const serverClient = createServerClient()
+    const { data: feeType, error } = await serverClient
+      .from('fee_types')
+      .insert(data)
+      .select()
+      .single()
+
+    if (error) {
+      console.error('Database error creating fee type:', error)
+      throw new Error(`Error creating fee type: ${error.message}`)
+    }
+
+    return feeType
+  } catch (error) {
+    console.error('Error in createFeeType:', error)
+    throw error
+  }
+}
+
+export async function getFeeTypes() {
+  try {
+    // Use service role client to bypass RLS
+    const serverClient = createServerClient()
+    const { data: feeTypes, error } = await serverClient
+      .from('fee_types')
+      .select('*')
+      .order('name', { ascending: true })
+
+    if (error) {
+      console.error('Database error fetching fee types:', error)
+      throw new Error(`Error fetching fee types: ${error.message}`)
+    }
+
+    return feeTypes || []
+  } catch (error) {
+    console.error('Error in getFeeTypes:', error)
+    return []
+  }
+}
+
+export async function getActiveFeeTypes() {
+  try {
+    // Use service role client to bypass RLS
+    const serverClient = createServerClient()
+    const { data: feeTypes, error } = await serverClient
+      .from('fee_types')
+      .select('*')
+      .eq('is_active', true)
+      .order('name', { ascending: true })
+
+    if (error) {
+      console.error('Database error fetching active fee types:', error)
+      throw new Error(`Error fetching active fee types: ${error.message}`)
+    }
+
+    return feeTypes || []
+  } catch (error) {
+    console.error('Error in getActiveFeeTypes:', error)
+    return []
+  }
+}
+
+export async function updateFeeType(id: string, data: Partial<Omit<FeeType, 'id' | 'created_at' | 'updated_at'>>) {
+  try {
+    // Use service role client to bypass RLS
+    const serverClient = createServerClient()
+    const { data: feeType, error } = await serverClient
+      .from('fee_types')
+      .update(data)
+      .eq('id', id)
+      .select()
+      .single()
+
+    if (error) {
+      console.error('Database error updating fee type:', error)
+      throw new Error(`Error updating fee type: ${error.message}`)
+    }
+
+    return feeType
+  } catch (error) {
+    console.error('Error in updateFeeType:', error)
+    throw error
+  }
+}
+
+export async function deleteFeeType(id: string) {
+  try {
+    // Use service role client to bypass RLS
+    const serverClient = createServerClient()
+    const { error } = await serverClient
+      .from('fee_types')
+      .delete()
+      .eq('id', id)
+
+    if (error) {
+      console.error('Database error deleting fee type:', error)
+      throw new Error(`Error deleting fee type: ${error.message}`)
+    }
+  } catch (error) {
+    console.error('Error in deleteFeeType:', error)
+    throw error
+  }
+} 

@@ -222,6 +222,17 @@ export interface Member {
   created_at: string
 }
 
+// Fee types for different categories of fees
+export interface FeeType {
+  id: string
+  name: string
+  description: string
+  amount: number
+  is_active: boolean
+  created_at: string
+  updated_at: string
+}
+
 // Database schema types
 export interface Database {
   public: {
@@ -280,6 +291,11 @@ export interface Database {
         Row: UserSession
         Insert: Omit<UserSession, 'id' | 'created_at'>
         Update: Partial<Omit<UserSession, 'id' | 'created_at'>>
+      }
+      fee_types: {
+        Row: FeeType
+        Insert: Omit<FeeType, 'id' | 'created_at' | 'updated_at'>
+        Update: Partial<Omit<FeeType, 'id' | 'created_at' | 'updated_at'>>
       }
       // Legacy tables for backward compatibility
       fee_entries: {
