@@ -15,9 +15,11 @@ interface FeeEntry {
 
 interface FeeTableProps {
   entries: FeeEntry[]
+  showDeleteButton?: boolean
+  onDelete?: (id: string) => void
 }
 
-export default function FeeTable({ entries }: FeeTableProps) {
+export default function FeeTable({ entries, showDeleteButton = false, onDelete }: FeeTableProps) {
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedDate, setSelectedDate] = useState('')
   const [selectedBlock, setSelectedBlock] = useState('')
@@ -186,6 +188,11 @@ export default function FeeTable({ entries }: FeeTableProps) {
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Remarks
               </th>
+              {showDeleteButton && (
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Actions
+                </th>
+              )}
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
@@ -222,6 +229,16 @@ export default function FeeTable({ entries }: FeeTableProps) {
                 <td className="px-6 py-4 text-sm text-gray-900 max-w-xs truncate">
                   {entry.remarks || '-'}
                 </td>
+                {showDeleteButton && onDelete && (
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    <button
+                      onClick={() => onDelete(entry.id)}
+                      className="text-red-600 hover:text-red-800 text-sm font-medium"
+                    >
+                      Delete
+                    </button>
+                  </td>
+                )}
               </tr>
             ))}
           </tbody>
