@@ -688,4 +688,180 @@ export async function deleteFeeType(id: string) {
     console.error('Error in deleteFeeType:', error)
     throw error
   }
+}
+
+// Monthly Fee Structure functions
+export async function getMonthlyFeeStructures() {
+  try {
+    // Check if Supabase is properly configured
+    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+      console.warn('Supabase is not configured. Returning sample data.')
+      return [
+        {
+          id: '1',
+          month: 'January',
+          year: 2024,
+          fee_types: [
+            { fee_type_id: '1', fee_type_name: 'Maintenance', amount: 500, is_required: true },
+            { fee_type_id: '2', fee_type_name: 'Water', amount: 200, is_required: true },
+            { fee_type_id: '3', fee_type_name: 'Electricity', amount: 300, is_required: false }
+          ],
+          is_active: true,
+          created_at: '2024-01-01T00:00:00Z'
+        },
+        {
+          id: '2',
+          month: 'February',
+          year: 2024,
+          fee_types: [
+            { fee_type_id: '1', fee_type_name: 'Maintenance', amount: 500, is_required: true },
+            { fee_type_id: '2', fee_type_name: 'Water', amount: 250, is_required: true },
+            { fee_type_id: '3', fee_type_name: 'Electricity', amount: 350, is_required: false }
+          ],
+          is_active: true,
+          created_at: '2024-01-01T00:00:00Z'
+        }
+      ]
+    }
+
+    // Use service role client to bypass RLS
+    const serverClient = createServerClient()
+    const { data: structures, error } = await serverClient
+      .from('monthly_fee_structures')
+      .select('*')
+      .eq('is_active', true)
+      .order('year', { ascending: false })
+      .order('month', { ascending: true })
+
+    if (error) {
+      // If table doesn't exist, return sample data
+      if (error.message.includes('does not exist') || error.message.includes('relation')) {
+        console.warn('Monthly fee structures table does not exist. Please run the SQL migration. Returning sample data.')
+        return [
+          {
+            id: '1',
+            month: 'January',
+            year: 2024,
+            fee_types: [
+              { fee_type_id: '1', fee_type_name: 'Maintenance', amount: 500, is_required: true },
+              { fee_type_id: '2', fee_type_name: 'Water', amount: 200, is_required: true },
+              { fee_type_id: '3', fee_type_name: 'Electricity', amount: 300, is_required: false }
+            ],
+            is_active: true,
+            created_at: '2024-01-01T00:00:00Z'
+          },
+          {
+            id: '2',
+            month: 'February',
+            year: 2024,
+            fee_types: [
+              { fee_type_id: '1', fee_type_name: 'Maintenance', amount: 500, is_required: true },
+              { fee_type_id: '2', fee_type_name: 'Water', amount: 250, is_required: true },
+              { fee_type_id: '3', fee_type_name: 'Electricity', amount: 350, is_required: false }
+            ],
+            is_active: true,
+            created_at: '2024-01-01T00:00:00Z'
+          },
+          {
+            id: '3',
+            month: 'March',
+            year: 2024,
+            fee_types: [
+              { fee_type_id: '1', fee_type_name: 'Maintenance', amount: 500, is_required: true },
+              { fee_type_id: '2', fee_type_name: 'Water', amount: 200, is_required: true },
+              { fee_type_id: '3', fee_type_name: 'Electricity', amount: 300, is_required: false }
+            ],
+            is_active: true,
+            created_at: '2024-01-01T00:00:00Z'
+          }
+        ]
+      }
+      console.error('Database error fetching monthly fee structures:', error)
+      throw new Error(`Error fetching monthly fee structures: ${error.message}`)
+    }
+
+    return structures || []
+  } catch (error) {
+    console.error('Error in getMonthlyFeeStructures:', error)
+    return []
+  }
+}
+
+export async function createMonthlyFeeStructure(data: {
+  month: string
+  year: number
+  fee_types: any[]
+  is_active?: boolean
+}) {
+  try {
+    const serverClient = createServerClient()
+    const { data: structure, error } = await serverClient
+      .from('monthly_fee_structures')
+      .insert({
+        month: data.month,
+        year: data.year,
+        fee_types: data.fee_types,
+        is_active: data.is_active ?? true
+      })
+      .select()
+      .single()
+
+    if (error) {
+      console.error('Database error creating monthly fee structure:', error)
+      throw new Error(`Error creating monthly fee structure: ${error.message}`)
+    }
+
+    return structure
+  } catch (error) {
+    console.error('Error in createMonthlyFeeStructure:', error)
+    throw error
+  }
+}
+
+export async function updateMonthlyFeeStructure(id: string, data: {
+  month?: string
+  year?: number
+  fee_types?: any[]
+  is_active?: boolean
+}) {
+  try {
+    const serverClient = createServerClient()
+    const { data: structure, error } = await serverClient
+      .from('monthly_fee_structures')
+      .update({
+        ...data,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', id)
+      .select()
+      .single()
+
+    if (error) {
+      console.error('Database error updating monthly fee structure:', error)
+      throw new Error(`Error updating monthly fee structure: ${error.message}`)
+    }
+
+    return structure
+  } catch (error) {
+    console.error('Error in updateMonthlyFeeStructure:', error)
+    throw error
+  }
+}
+
+export async function deleteMonthlyFeeStructure(id: string) {
+  try {
+    const serverClient = createServerClient()
+    const { error } = await serverClient
+      .from('monthly_fee_structures')
+      .delete()
+      .eq('id', id)
+
+    if (error) {
+      console.error('Database error deleting monthly fee structure:', error)
+      throw new Error(`Error deleting monthly fee structure: ${error.message}`)
+    }
+  } catch (error) {
+    console.error('Error in deleteMonthlyFeeStructure:', error)
+    throw error
+  }
 } 

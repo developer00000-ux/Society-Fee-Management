@@ -29,6 +29,7 @@ export default function SuperAdminColonyAdminsPage() {
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [editingAdmin, setEditingAdmin] = useState<ColonyAdmin | null>(null)
+  const [errors, setErrors] = useState<string[]>([])
   const [formData, setFormData] = useState({
     first_name: '',
     last_name: '',
@@ -39,13 +40,39 @@ export default function SuperAdminColonyAdminsPage() {
   })
 
   useEffect(() => {
-    fetchColonyAdmins()
-    fetchColonies()
+    const checkAuthAndFetch = async () => {
+      try {
+        // Check if user is authenticated
+        const { data: { user }, error: authError } = await supabase.auth.getUser()
+        
+        if (authError) {
+          console.error('Authentication error:', authError)
+          return
+        }
+        
+        if (!user) {
+          console.error('No authenticated user found')
+          return
+        }
+        
+        console.log('Authenticated user:', user.email)
+        
+        // Fetch data
+        await fetchColonyAdmins()
+        await fetchColonies()
+      } catch (error) {
+        console.error('Error in checkAuthAndFetch:', error)
+      }
+    }
+    
+    checkAuthAndFetch()
   }, [])
 
   const fetchColonyAdmins = async () => {
     try {
-      const { data, error } = await supabase
+      console.log('Fetching colony admins...')
+      // First, get all colony admins
+      const { data: adminsData, error: adminsError } = await supabase
         .from('user_profiles')
         .select(`
           id,
@@ -55,29 +82,44 @@ export default function SuperAdminColonyAdminsPage() {
           phone,
           colony_id,
           is_active,
-          created_at,
-          colonies(
-            name
-          )
+          created_at
         `)
         .eq('role', 'colony_admin')
         .order('first_name', { ascending: true })
 
-      if (error) {
-        console.error('Error fetching colony admins:', error)
+      if (adminsError) {
+        console.error('Error fetching colony admins:', adminsError)
+        console.error('Error details:', JSON.stringify(adminsError, null, 2))
+        setErrors(prev => [...prev, `Colony admins error: ${adminsError.message}`])
         return
       }
 
-      const adminsWithColonyNames = data?.map(admin => ({
+      console.log('Colony admins data:', adminsData)
+
+      // Then, get all colonies to map colony names
+      const { data: coloniesData, error: coloniesError } = await supabase
+        .from('colonies')
+        .select('id, name')
+
+      if (coloniesError) {
+        console.error('Error fetching colonies for mapping:', coloniesError)
+        setErrors(prev => [...prev, `Colonies mapping error: ${coloniesError.message}`])
+        return
+      }
+
+      // Create a map of colony_id to colony_name
+      const colonyMap = new Map(coloniesData?.map(colony => [colony.id, colony.name]) || [])
+
+      // Combine the data
+      const adminsWithColonyNames = adminsData?.map(admin => ({
         ...admin,
-        colony_name: admin.colonies && typeof admin.colonies === 'object' && 'name' in admin.colonies 
-          ? (admin.colonies as any).name 
-          : 'No Colony Assigned'
+        colony_name: admin.colony_id ? colonyMap.get(admin.colony_id) || 'Unknown Colony' : 'No Colony Assigned'
       })) || []
 
       setColonyAdmins(adminsWithColonyNames)
     } catch (error) {
       console.error('Error fetching colony admins:', error)
+      console.error('Error details:', JSON.stringify(error, null, 2))
     } finally {
       setLoading(false)
     }
@@ -85,6 +127,7 @@ export default function SuperAdminColonyAdminsPage() {
 
   const fetchColonies = async () => {
     try {
+      console.log('Fetching colonies...')
       const { data, error } = await supabase
         .from('colonies')
         .select('id, name')
@@ -92,12 +135,16 @@ export default function SuperAdminColonyAdminsPage() {
 
       if (error) {
         console.error('Error fetching colonies:', error)
+        console.error('Error details:', JSON.stringify(error, null, 2))
+        setErrors(prev => [...prev, `Colonies error: ${error.message}`])
         return
       }
 
+      console.log('Colonies data:', data)
       setColonies(data || [])
     } catch (error) {
       console.error('Error fetching colonies:', error)
+      console.error('Error details:', JSON.stringify(error, null, 2))
     }
   }
 
@@ -253,6 +300,43 @@ export default function SuperAdminColonyAdminsPage() {
                 <div className="text-center">
                   <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
                   <p className="mt-4 text-gray-600">Loading colony admins...</p>
+                  <div className="mt-4 space-y-2">
+                    <button
+                      onClick={() => {
+                        fetch('/api/test-env').then(r => r.json()).then(console.log)
+                      }}
+                      className="text-sm text-blue-600 hover:text-blue-800"
+                    >
+                      Test Environment Variables
+                    </button>
+                    <br />
+                    <button
+                      onClick={() => {
+                        fetch('/api/test-db').then(r => r.json()).then(console.log)
+                      }}
+                      className="text-sm text-blue-600 hover:text-blue-800"
+                    >
+                      Test Database Connection
+                    </button>
+                    <br />
+                    <button
+                      onClick={() => {
+                        fetch('/api/test-colony-admins').then(r => r.json()).then(console.log)
+                      }}
+                      className="text-sm text-blue-600 hover:text-blue-800"
+                    >
+                      Test Colony Admins Query
+                    </button>
+                    <br />
+                    <button
+                      onClick={() => {
+                        fetch('/api/disable-rls', { method: 'POST' }).then(r => r.json()).then(console.log)
+                      }}
+                      className="text-sm text-blue-600 hover:text-blue-800"
+                    >
+                      Disable RLS for Testing
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -283,6 +367,94 @@ export default function SuperAdminColonyAdminsPage() {
                 Add New Colony Admin
               </button>
             </div>
+
+            {/* Error Display */}
+            {errors.length > 0 && (
+              <div className="mb-6 bg-red-50 border border-red-200 rounded-md p-4">
+                <h3 className="text-sm font-medium text-red-800">Errors:</h3>
+                <ul className="mt-2 text-sm text-red-700">
+                  {errors.map((error, index) => (
+                    <li key={index} className="list-disc list-inside">{error}</li>
+                  ))}
+                </ul>
+                <div className="mt-4 space-x-2">
+                  <button
+                    onClick={() => setErrors([])}
+                    className="text-sm text-red-600 hover:text-red-800"
+                  >
+                    Clear Errors
+                  </button>
+                  <button
+                    onClick={() => {
+                      fetchColonyAdmins()
+                      fetchColonies()
+                    }}
+                    className="text-sm text-blue-600 hover:text-blue-800"
+                  >
+                    Retry
+                  </button>
+                  <button
+                    onClick={async () => {
+                      try {
+                        const response = await fetch('/api/disable-rls-simple', { method: 'POST' })
+                        const result = await response.json()
+                        console.log('RLS fix result:', result)
+                        if (result.success) {
+                          setErrors([])
+                          fetchColonyAdmins()
+                          fetchColonies()
+                        }
+                      } catch (error) {
+                        console.error('Error fixing RLS:', error)
+                      }
+                    }}
+                    className="text-sm text-green-600 hover:text-green-800"
+                  >
+                    Fix RLS Issues (Simple)
+                  </button>
+                                     <button
+                     onClick={async () => {
+                       try {
+                         const response = await fetch('/api/fix-rls-recursion', { method: 'POST' })
+                         const result = await response.json()
+                         console.log('Permanent RLS fix result:', result)
+                         if (result.success) {
+                           setErrors([])
+                           fetchColonyAdmins()
+                           fetchColonies()
+                         }
+                       } catch (error) {
+                         console.error('Error fixing RLS permanently:', error)
+                       }
+                     }}
+                     className="text-sm text-purple-600 hover:text-purple-800"
+                   >
+                     Fix RLS Issues (Permanent)
+                   </button>
+                   <button
+                     onClick={async () => {
+                       try {
+                         const response = await fetch('/api/add-email-column-simple', { method: 'POST' })
+                         const result = await response.json()
+                         console.log('Add email column result:', result)
+                         if (result.success) {
+                           setErrors([])
+                           fetchColonyAdmins()
+                           fetchColonies()
+                         } else if (result.sql) {
+                           alert(`Email column missing! Please run this SQL in your Supabase SQL Editor:\n\n${result.sql}`)
+                         }
+                       } catch (error) {
+                         console.error('Error adding email column:', error)
+                       }
+                     }}
+                     className="text-sm text-orange-600 hover:text-orange-800"
+                   >
+                     Add Email Column
+                   </button>
+                </div>
+              </div>
+            )}
 
             {/* Colony Admins List */}
             <div className="bg-white shadow overflow-hidden sm:rounded-md">
@@ -341,6 +513,13 @@ export default function SuperAdminColonyAdminsPage() {
             {colonyAdmins.length === 0 && (
               <div className="text-center py-12">
                 <p className="text-gray-500">No colony admins found. Create your first colony admin to get started.</p>
+                <div className="mt-4 text-sm text-gray-400">
+                  <p>Debug Info:</p>
+                  <p>Colony Admins Count: {colonyAdmins.length}</p>
+                  <p>Colonies Count: {colonies.length}</p>
+                  <p>Loading: {loading.toString()}</p>
+                  <p>Errors: {errors.length}</p>
+                </div>
               </div>
             )}
           </div>

@@ -59,13 +59,7 @@ export default function SuperAdminBlockManagersPage() {
           phone,
           building_id,
           is_active,
-          created_at,
-          buildings(
-            name,
-            colonies(
-              name
-            )
-          )
+          created_at
         `)
         .eq('role', 'block_manager')
         .order('first_name', { ascending: true })
@@ -75,13 +69,27 @@ export default function SuperAdminBlockManagersPage() {
         return
       }
 
+      // Get buildings and colonies for mapping
+      const { data: buildingsData } = await supabase
+        .from('buildings')
+        .select('id, name, colony_id')
+      
+      const { data: coloniesData } = await supabase
+        .from('colonies')
+        .select('id, name')
+
+      // Create maps for efficient lookup
+      const buildingMap = new Map(buildingsData?.map(building => [building.id, building.name]) || [])
+      const colonyMap = new Map(coloniesData?.map(colony => [colony.id, colony.name]) || [])
+
       const managersWithBuildingNames = data?.map(manager => ({
         ...manager,
-        building_name: manager.buildings && typeof manager.buildings === 'object' && 'name' in manager.buildings 
-          ? (manager.buildings as any).name 
-          : 'No Building Assigned',
-        colony_name: manager.buildings && typeof manager.buildings === 'object' && 'colonies' in manager.buildings && manager.buildings.colonies && typeof manager.buildings.colonies === 'object' && 'name' in manager.buildings.colonies
-          ? (manager.buildings.colonies as any).name 
+        building_name: manager.building_id ? buildingMap.get(manager.building_id) || 'Unknown Building' : 'No Building Assigned',
+        colony_name: manager.building_id && buildingsData ? 
+          (() => {
+            const building = buildingsData.find(b => b.id === manager.building_id)
+            return building?.colony_id ? colonyMap.get(building.colony_id) || 'Unknown Colony' : 'No Colony'
+          })() 
           : 'N/A'
       })) || []
 
@@ -97,13 +105,7 @@ export default function SuperAdminBlockManagersPage() {
     try {
       const { data, error } = await supabase
         .from('buildings')
-        .select(`
-          id,
-          name,
-          colonies(
-            name
-          )
-        `)
+        .select('id, name, colony_id')
         .order('name', { ascending: true })
 
       if (error) {
@@ -111,7 +113,20 @@ export default function SuperAdminBlockManagersPage() {
         return
       }
 
-      setBuildings((data as any) || [])
+      // Get colonies for mapping
+      const { data: coloniesData } = await supabase
+        .from('colonies')
+        .select('id, name')
+
+      const colonyMap = new Map(coloniesData?.map(colony => [colony.id, colony.name]) || [])
+
+      // Add colony names to buildings
+      const buildingsWithColonies = data?.map(building => ({
+        ...building,
+        colony_name: building.colony_id ? colonyMap.get(building.colony_id) || 'Unknown Colony' : 'No Colony'
+      })) || []
+
+      setBuildings(buildingsWithColonies)
     } catch (error) {
       console.error('Error fetching buildings:', error)
     }

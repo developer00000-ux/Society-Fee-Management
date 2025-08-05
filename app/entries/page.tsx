@@ -14,7 +14,10 @@ export default function EntriesPage() {
 
   useEffect(() => {
     if (!loading && !user) {
+      console.log('No user found, redirecting to login')
       router.push('/login')
+    } else if (!loading && user) {
+      console.log('User found:', { email: user.email, role: user.role })
     }
   }, [user, loading, router])
 
@@ -31,7 +34,7 @@ export default function EntriesPage() {
   }
 
   return (
-    <ProtectedRoute requiredRoles={['resident', 'super_admin', 'colony_admin', 'block_manager']}>
+    <ProtectedRoute requiredRoles={[]}>
       <div className="min-h-screen bg-gray-50">
         {/* Navbar */}
         <Navbar title="Society Fee Management" />

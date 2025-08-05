@@ -5,7 +5,7 @@ export async function POST() {
   try {
     const supabase = createServerClient()
     
-    // Disable RLS for testing
+    // Disable RLS temporarily for testing
     const { error: userProfilesError } = await supabase.rpc('disable_rls', { table_name: 'user_profiles' })
     const { error: coloniesError } = await supabase.rpc('disable_rls', { table_name: 'colonies' })
     
@@ -26,9 +26,9 @@ export async function POST() {
       }
     })
   } catch (error) {
-    console.error('Error disabling RLS:', error)
+    console.error('Error fixing RLS policies:', error)
     return NextResponse.json({
-      error: 'Failed to disable RLS',
+      error: 'Failed to fix RLS policies',
       details: error instanceof Error ? error.message : 'Unknown error'
     }, { status: 500 })
   }

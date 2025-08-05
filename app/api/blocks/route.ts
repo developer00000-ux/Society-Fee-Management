@@ -7,14 +7,15 @@ export async function GET() {
     
     const { data: buildings, error } = await supabase
       .from('buildings')
-      .select(`
-        *,
-        colonies(
-          id,
-          name
-        )
-      `)
+      .select('*')
       .order('name', { ascending: true })
+
+    // Get colonies for mapping
+    const { data: colonies } = await supabase
+      .from('colonies')
+      .select('id, name')
+
+    const colonyMap = new Map(colonies?.map(colony => [colony.id, colony.name]) || [])
 
     // Transform buildings to blocks format
     const blocks = buildings?.map(building => ({
@@ -22,7 +23,7 @@ export async function GET() {
       block_name: building.name,
       description: building.building_type,
       colony_id: building.colony_id,
-      colony_name: building.colonies?.name || 'No Colony Assigned',
+      colony_name: building.colony_id ? colonyMap.get(building.colony_id) || 'Unknown Colony' : 'No Colony Assigned',
       created_at: building.created_at
     })) || []
 

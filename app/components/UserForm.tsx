@@ -1,9 +1,10 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
+import Link from 'next/link'
 import FeeTable from './FeeTable'
-import { createFeeEntry, getFeeEntries, getBlocks, getMembers, getFlats, getActiveFeeTypes, getMemberByUserId, getBuildingById, getFlatById } from '@/lib/database'
-import { FeeEntry, Building, Member, Flat, FeeType, Block } from '@/types/database'
+import { createFeeEntry, getFeeEntries, getBlocks, getMembers, getFlats, getMemberByUserId, getBuildingById, getFlatById, getMonthlyFeeStructures } from '@/lib/database'
+import { FeeEntry, Building, Member, Flat, Block } from '@/types/database'
 import { useAuth } from '@/lib/contexts/AuthContext'
 
 interface LocalFeeEntry {
@@ -20,9 +21,24 @@ interface LocalFeeEntry {
   feeTypes?: string[]
 }
 
-interface SelectedFeeType {
-  feeType: FeeType
-  quantity: number
+
+
+interface MonthlyFeeStructure {
+  id?: string
+  month: string
+  year: number
+  fee_types: MonthlyFeeType[]
+  is_active: boolean
+  created_at?: string
+  updated_at?: string
+}
+
+interface MonthlyFeeType {
+  fee_type_id: string
+  fee_type_name: string
+  amount: number
+  is_required: boolean
+  description?: string
 }
 
 export default function UserForm() {
@@ -42,8 +58,7 @@ export default function UserForm() {
   const [buildings, setBuildings] = useState<Block[]>([])
   const [members, setMembers] = useState<Member[]>([])
   const [flats, setFlats] = useState<Flat[]>([])
-  const [feeTypes, setFeeTypes] = useState<FeeType[]>([])
-  const [selectedFeeTypes, setSelectedFeeTypes] = useState<SelectedFeeType[]>([])
+  const [monthlyStructures, setMonthlyStructures] = useState<MonthlyFeeStructure[]>([])
   const [autoFilled, setAutoFilled] = useState(false)
 
   const months = [
@@ -58,16 +73,16 @@ export default function UserForm() {
 
   const loadData = async () => {
     try {
-      const [buildingsData, membersData, flatsData, feeTypesData] = await Promise.all([
+      const [buildingsData, membersData, flatsData, monthlyStructuresData] = await Promise.all([
         getBlocks(),
         getMembers(),
         getFlats(),
-        getActiveFeeTypes()
+        getMonthlyFeeStructures()
       ])
       setBuildings(buildingsData)
       setMembers(membersData)
       setFlats(flatsData)
-      setFeeTypes(feeTypesData)
+      setMonthlyStructures(monthlyStructuresData)
 
       // Auto-fill form for residents
       if (user && user.role === 'resident' && !autoFilled) {
@@ -138,42 +153,20 @@ export default function UserForm() {
     })
   }
 
-  const handleFeeTypeToggle = (feeType: FeeType) => {
-    setSelectedFeeTypes(prev => {
-      const existing = prev.find(item => item.feeType.id === feeType.id)
-      if (existing) {
-        return prev.filter(item => item.feeType.id !== feeType.id)
-      } else {
-        return [...prev, { feeType, quantity: 1 }]
-      }
-    })
-  }
 
-  const handleQuantityChange = (feeTypeId: string, quantity: number) => {
-    if (quantity <= 0) {
-      setSelectedFeeTypes(prev => prev.filter(item => item.feeType.id !== feeTypeId))
-    } else {
-      setSelectedFeeTypes(prev => 
-        prev.map(item => 
-          item.feeType.id === feeTypeId 
-            ? { ...item, quantity } 
-            : item
-        )
-      )
-    }
-  }
 
   const calculateTotalFee = () => {
-    return selectedFeeTypes.reduce((total, item) => {
-      return total + (item.feeType.amount * item.quantity)
+    return formData.selectedMonths.reduce((total, month) => {
+      const structure = monthlyStructures.find(s => s.month === month)
+      return total + (structure ? structure.fee_types.reduce((sum, ft) => sum + ft.amount, 0) : 0)
     }, 0)
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     
-    if (selectedFeeTypes.length === 0) {
-      alert('Please select at least one fee type.')
+    if (formData.selectedMonths.length === 0) {
+      alert('Please select at least one month.')
       return
     }
 
@@ -181,9 +174,13 @@ export default function UserForm() {
     
     try {
       const totalFee = calculateTotalFee()
-      const feeTypeNames = selectedFeeTypes.map(item => 
-        `${item.feeType.name} (${item.quantity}x)`
-      ).join(', ')
+      
+      // Create fee type names from selected months
+      const feeTypeNames = formData.selectedMonths.map(month => {
+        const structure = monthlyStructures.find(s => s.month === month)
+        if (!structure) return month
+        return `${month}: ${structure.fee_types.map(ft => `${ft.fee_type_name} (₹${ft.amount})`).join(', ')}`
+      }).join('; ')
 
       // Create entry in database
       const dbEntry = await createFeeEntry({
@@ -194,7 +191,7 @@ export default function UserForm() {
         fee: totalFee,
         total_fee: totalFee,
         payment_type: formData.paymentType,
-        remarks: `${formData.remarks}\nFee Types: ${feeTypeNames}`.trim()
+        remarks: `${formData.remarks}\nMonthly Fee Structure: ${feeTypeNames}`.trim()
       })
 
       // Create local entry for display
@@ -209,7 +206,10 @@ export default function UserForm() {
         paymentType: dbEntry.payment_type,
         remarks: dbEntry.remarks,
         date: new Date().toLocaleDateString(),
-        feeTypes: selectedFeeTypes.map(item => `${item.feeType.name} (${item.quantity}x)`)
+        feeTypes: formData.selectedMonths.map(month => {
+          const structure = monthlyStructures.find(s => s.month === month)
+          return structure ? `${month}: ${structure.fee_types.map(ft => ft.fee_type_name).join(', ')}` : month
+        })
       }
 
       setEntries(prev => [newEntry, ...prev])
@@ -223,7 +223,6 @@ export default function UserForm() {
         paymentType: '',
         remarks: ''
       })
-      setSelectedFeeTypes([])
     } catch (error) {
       console.error('Error submitting fee entry:', error)
       if (error instanceof Error && error.message.includes('Supabase is not configured')) {
@@ -402,22 +401,47 @@ export default function UserForm() {
           </div>
         </div>
 
-        {/* Month Selection */}
+        {/* Monthly Fee Structure Selection */}
         <div className="mt-6">
-          <label className="block text-sm font-medium mb-3">Select Months</label>
+          <label className="block text-sm font-medium mb-3">Select Months with Predefined Fee Structure</label>
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-            {months.map(month => (
+            {monthlyStructures.map(structure => (
               <button
-                key={month}
+                key={structure.id}
                 type="button"
-                onClick={() => handleMonthToggle(month)}
-                className={`px-4 py-2 border rounded-md transition-colors text-sm ${
-                  formData.selectedMonths.includes(month)
+                onClick={() => handleMonthToggle(structure.month)}
+                className={`px-4 py-2 border rounded-md transition-colors text-sm relative ${
+                  formData.selectedMonths.includes(structure.month)
                     ? 'bg-gray-800 text-white border-gray-800'
                     : 'border-gray-300 text-gray-700 hover:bg-gray-50'
                 }`}
               >
-                {month}
+                <div className="text-center">
+                  <div className="font-medium">{structure.month}</div>
+                  <div className="text-xs opacity-75">
+                    ₹{structure.fee_types.reduce((sum, ft) => sum + ft.amount, 0)}
+                  </div>
+                  <div className="text-xs opacity-60">
+                    {structure.fee_types.length} fees
+                  </div>
+                </div>
+                {/* Fee breakdown tooltip */}
+                <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-gray-900 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-10">
+                  <div className="space-y-1">
+                    {structure.fee_types.map((feeType, index) => (
+                      <div key={index} className="flex justify-between">
+                        <span>{feeType.fee_type_name}:</span>
+                        <span>₹{feeType.amount}</span>
+                      </div>
+                    ))}
+                    <div className="border-t pt-1 mt-1">
+                      <div className="flex justify-between font-medium">
+                        <span>Total:</span>
+                        <span>₹{structure.fee_types.reduce((sum, ft) => sum + ft.amount, 0)}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </button>
             ))}
           </div>
@@ -428,63 +452,46 @@ export default function UserForm() {
           )}
         </div>
 
-        {/* Fee Types Selection */}
-        <div className="mt-6">
-          <label className="block text-sm font-medium mb-3">Select Fee Types</label>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {feeTypes.map(feeType => (
-              <div
-                key={feeType.id}
-                className={`p-4 border rounded-lg cursor-pointer transition-colors ${
-                  selectedFeeTypes.find(item => item.feeType.id === feeType.id)
-                    ? 'border-blue-500 bg-blue-50'
-                    : 'border-gray-300 hover:border-gray-400'
-                }`}
-                onClick={() => handleFeeTypeToggle(feeType)}
-              >
-                <div className="flex justify-between items-start">
-                  <div>
-                    <h3 className="font-medium text-gray-900">{feeType.name}</h3>
-                    <p className="text-sm text-gray-600 mt-1">{feeType.description}</p>
-                    <p className="text-lg font-bold text-blue-600 mt-2">₹{feeType.amount.toFixed(2)}</p>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    {selectedFeeTypes.find(item => item.feeType.id === feeType.id) && (
-                      <input
-                        type="number"
-                        min="1"
-                        value={selectedFeeTypes.find(item => item.feeType.id === feeType.id)?.quantity || 1}
-                        onChange={(e) => handleQuantityChange(feeType.id, parseInt(e.target.value) || 1)}
-                        onClick={(e) => e.stopPropagation()}
-                        className="w-16 px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      />
-                    )}
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Selected Fee Types Summary */}
-        {selectedFeeTypes.length > 0 && (
+        {/* Selected Months Fee Summary */}
+        {formData.selectedMonths.length > 0 && (
           <div className="mt-6 p-4 bg-gray-50 rounded-lg">
-            <h3 className="font-medium text-gray-900 mb-3">Selected Fee Types:</h3>
-            <div className="space-y-2">
-              {selectedFeeTypes.map(item => (
-                <div key={item.feeType.id} className="flex justify-between items-center">
-                  <span className="text-sm text-gray-700">
-                    {item.feeType.name} × {item.quantity}
-                  </span>
-                  <span className="font-medium">
-                    ₹{(item.feeType.amount * item.quantity).toFixed(2)}
-                  </span>
-                </div>
-              ))}
-              <div className="border-t pt-2 mt-3">
+            <h3 className="font-medium text-gray-900 mb-3">Selected Months Fee Breakdown:</h3>
+            <div className="space-y-3">
+              {formData.selectedMonths.map(month => {
+                const structure = monthlyStructures.find(s => s.month === month)
+                if (!structure) return null
+                
+                return (
+                  <div key={month} className="border-b pb-3 last:border-b-0">
+                    <div className="flex justify-between items-center mb-2">
+                      <span className="font-medium text-gray-900">{month}</span>
+                      <span className="text-lg font-bold text-blue-600">
+                        ₹{structure.fee_types.reduce((sum, ft) => sum + ft.amount, 0)}
+                      </span>
+                    </div>
+                    <div className="space-y-1">
+                      {structure.fee_types.map((feeType, index) => (
+                        <div key={index} className="flex justify-between items-center text-sm">
+                          <span className="text-gray-700">
+                            {feeType.fee_type_name}
+                            {feeType.is_required && <span className="text-red-600 ml-1">*</span>}
+                          </span>
+                          <span className="font-medium">₹{feeType.amount}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )
+              })}
+              <div className="border-t pt-3 mt-3">
                 <div className="flex justify-between items-center">
-                  <span className="font-bold text-gray-900">Total:</span>
-                  <span className="text-lg font-bold text-blue-600">₹{totalFee.toFixed(2)}</span>
+                  <span className="font-bold text-gray-900">Total Amount:</span>
+                  <span className="text-xl font-bold text-blue-600">
+                    ₹{formData.selectedMonths.reduce((total, month) => {
+                      const structure = monthlyStructures.find(s => s.month === month)
+                      return total + (structure ? structure.fee_types.reduce((sum, ft) => sum + ft.amount, 0) : 0)
+                    }, 0).toFixed(2)}
+                  </span>
                 </div>
               </div>
             </div>
@@ -507,7 +514,7 @@ export default function UserForm() {
         <div className="mt-6">
           <button
             type="submit"
-            disabled={selectedFeeTypes.length === 0 || loading}
+            disabled={formData.selectedMonths.length === 0 || loading}
             className="w-full bg-gray-800 text-white py-3 px-6 rounded-md hover:bg-gray-700 transition-colors font-medium disabled:bg-gray-400 disabled:cursor-not-allowed"
           >
             {loading ? 'Submitting...' : 'Submit Fee Entry'}
@@ -519,8 +526,18 @@ export default function UserForm() {
       <div className="mb-6">
         {user && user.role === 'resident' && (
           <div className="mb-4">
-            <h2 className="text-xl font-semibold text-gray-900 mb-2">Your Fee Entries</h2>
-            <p className="text-sm text-gray-600">Showing only your fee payment history</p>
+            <div className="flex justify-between items-center">
+              <div>
+                <h2 className="text-xl font-semibold text-gray-900 mb-2">Your Fee Entries</h2>
+                <p className="text-sm text-gray-600">Showing only your fee payment history</p>
+              </div>
+              <Link
+                href="/entries/all"
+                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors"
+              >
+                See All Entries
+              </Link>
+            </div>
           </div>
         )}
         <FeeTable entries={entries} />

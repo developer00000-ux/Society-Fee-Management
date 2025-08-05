@@ -74,13 +74,7 @@ export default function SuperAdminUsersPage() {
           building_id,
           flat_id,
           is_active,
-          created_at,
-          colonies(
-            name
-          ),
-          buildings(
-            name
-          )
+          created_at
         `)
         .order('first_name', { ascending: true })
 
@@ -89,14 +83,23 @@ export default function SuperAdminUsersPage() {
         return
       }
 
+      // Get colonies and buildings for mapping
+      const { data: coloniesData } = await supabase
+        .from('colonies')
+        .select('id, name')
+      
+      const { data: buildingsData } = await supabase
+        .from('buildings')
+        .select('id, name')
+
+      // Create maps for efficient lookup
+      const colonyMap = new Map(coloniesData?.map(colony => [colony.id, colony.name]) || [])
+      const buildingMap = new Map(buildingsData?.map(building => [building.id, building.name]) || [])
+
       const usersWithNames = data?.map(user => ({
         ...user,
-        colony_name: user.colonies && typeof user.colonies === 'object' && 'name' in user.colonies 
-          ? (user.colonies as any).name 
-          : 'No Colony Assigned',
-        building_name: user.buildings && typeof user.buildings === 'object' && 'name' in user.buildings 
-          ? (user.buildings as any).name 
-          : 'No Building Assigned'
+        colony_name: user.colony_id ? colonyMap.get(user.colony_id) || 'Unknown Colony' : 'No Colony Assigned',
+        building_name: user.building_id ? buildingMap.get(user.building_id) || 'Unknown Building' : 'No Building Assigned'
       })) || []
 
       setUsers(usersWithNames)
