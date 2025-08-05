@@ -849,19 +849,112 @@ export async function updateMonthlyFeeStructure(id: string, data: {
 }
 
 export async function deleteMonthlyFeeStructure(id: string) {
-  try {
-    const serverClient = createServerClient()
-    const { error } = await serverClient
-      .from('monthly_fee_structures')
-      .delete()
-      .eq('id', id)
+  const { error } = await supabase
+    .from('monthly_fee_structures')
+    .delete()
+    .eq('id', id)
 
-    if (error) {
-      console.error('Database error deleting monthly fee structure:', error)
-      throw new Error(`Error deleting monthly fee structure: ${error.message}`)
-    }
-  } catch (error) {
-    console.error('Error in deleteMonthlyFeeStructure:', error)
-    throw error
+  if (error) {
+    throw new Error(`Error deleting monthly fee structure: ${error.message}`)
   }
+}
+
+// Payment confirmation functions
+export async function confirmPayment(feeEntryId: string, confirmedBy: string) {
+  const { data: entry, error } = await supabase
+    .from('fee_entries')
+    .update({
+      payment_confirmed: true,
+      payment_confirmed_by: confirmedBy,
+      payment_confirmed_at: new Date().toISOString()
+    })
+    .eq('id', feeEntryId)
+    .select()
+    .single()
+
+  if (error) {
+    throw new Error(`Error confirming payment: ${error.message}`)
+  }
+
+  return entry
+}
+
+export async function unconfirmPayment(feeEntryId: string) {
+  const { data: entry, error } = await supabase
+    .from('fee_entries')
+    .update({
+      payment_confirmed: false,
+      payment_confirmed_by: null,
+      payment_confirmed_at: null
+    })
+    .eq('id', feeEntryId)
+    .select()
+    .single()
+
+  if (error) {
+    throw new Error(`Error unconfirming payment: ${error.message}`)
+  }
+
+  return entry
+}
+
+export async function getPendingPayments() {
+  const { data: entries, error } = await supabase
+    .from('fee_entries')
+    .select(`
+      *,
+      user_profiles!fee_entries_created_by_fkey (
+        id,
+        first_name,
+        last_name,
+        email,
+        role
+      ),
+      user_profiles!fee_entries_payment_confirmed_by_fkey (
+        id,
+        first_name,
+        last_name,
+        email,
+        role
+      )
+    `)
+    .eq('payment_confirmed', false)
+    .in('payment_type', ['Cash', 'Request Payment'])
+    .order('created_at', { ascending: false })
+
+  if (error) {
+    throw new Error(`Error fetching pending payments: ${error.message}`)
+  }
+
+  return entries
+}
+
+export async function getConfirmedPayments() {
+  const { data: entries, error } = await supabase
+    .from('fee_entries')
+    .select(`
+      *,
+      user_profiles!fee_entries_created_by_fkey (
+        id,
+        first_name,
+        last_name,
+        email,
+        role
+      ),
+      user_profiles!fee_entries_payment_confirmed_by_fkey (
+        id,
+        first_name,
+        last_name,
+        email,
+        role
+      )
+    `)
+    .eq('payment_confirmed', true)
+    .order('payment_confirmed_at', { ascending: false })
+
+  if (error) {
+    throw new Error(`Error fetching confirmed payments: ${error.message}`)
+  }
+
+  return entries
 } 

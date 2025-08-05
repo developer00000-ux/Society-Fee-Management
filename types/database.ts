@@ -203,6 +203,10 @@ export interface FeeEntry {
   payment_type: string
   remarks: string
   created_at: string
+  payment_confirmed?: boolean
+  payment_confirmed_by?: string
+  payment_confirmed_at?: string
+  created_by?: string
 }
 
 export interface Block {

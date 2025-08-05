@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react'
 import { createFeeEntry, getBlocks, getMembers, getFlats, getActiveFeeTypes, getMonthlyFeeStructures, getMemberByUserId, getBuildingById, getFlatById } from '@/lib/database'
 import { FeeEntry, Building, Member, Flat, Block, FeeType } from '@/types/database'
 import { useAuth } from '@/lib/contexts/AuthContext'
+import PaymentRequestModal from './PaymentRequestModal'
 
 interface LocalFeeEntry {
   id: string
@@ -69,6 +70,8 @@ export default function SharedFeeEntryForm({ mode, onEntryCreated, onClose }: Sh
   const [monthlyStructures, setMonthlyStructures] = useState<MonthlyFeeStructure[]>([])
   const [autoFilled, setAutoFilled] = useState(false)
   const [useMonthlyStructures, setUseMonthlyStructures] = useState(true)
+  const [showPaymentModal, setShowPaymentModal] = useState(false)
+  const [currentFeeEntry, setCurrentFeeEntry] = useState<LocalFeeEntry | null>(null)
 
   const months = [
     'January', 'February', 'March', 'April', 'May', 'June',
@@ -226,7 +229,8 @@ export default function SharedFeeEntryForm({ mode, onEntryCreated, onClose }: Sh
         fee: totalFee,
         total_fee: totalFee,
         payment_type: formData.paymentType,
-        remarks: `${formData.remarks}\nMonthly Fee Structure: ${feeTypeNames}`.trim()
+        remarks: `${formData.remarks}\nMonthly Fee Structure: ${feeTypeNames}`.trim(),
+        created_by: user?.id
       })
 
       // Create local entry for display
@@ -245,6 +249,14 @@ export default function SharedFeeEntryForm({ mode, onEntryCreated, onClose }: Sh
           const structure = monthlyStructures.find(s => s.month === month)
           return structure ? `${month}: ${structure.fee_types.map(ft => ft.fee_type_name).join(', ')}` : month
         })
+      }
+
+      // If payment type is "Request Payment", show the payment modal
+      if (formData.paymentType === 'Request Payment') {
+        setCurrentFeeEntry(newEntry)
+        setShowPaymentModal(true)
+        setLoading(false)
+        return
       }
 
       if (onEntryCreated) {
@@ -521,6 +533,38 @@ export default function SharedFeeEntryForm({ mode, onEntryCreated, onClose }: Sh
           </button>
         </div>
       </form>
+
+      {/* Payment Request Modal */}
+      {currentFeeEntry && (
+        <PaymentRequestModal
+          isOpen={showPaymentModal}
+          onClose={() => {
+            setShowPaymentModal(false)
+            setCurrentFeeEntry(null)
+            // Reset form after payment request
+            setFormData({
+              block: '',
+              memberName: '',
+              flatNumber: '',
+              selectedMonths: [],
+              paymentType: '',
+              remarks: ''
+            })
+            setSelectedFeeTypes([])
+            if (onClose) {
+              onClose()
+            }
+          }}
+          feeEntry={{
+            memberName: currentFeeEntry.memberName,
+            flatNumber: currentFeeEntry.flatNumber,
+            block: currentFeeEntry.block,
+            totalFee: parseFloat(currentFeeEntry.totalFee),
+            months: currentFeeEntry.months,
+            remarks: currentFeeEntry.remarks
+          }}
+        />
+      )}
     </div>
   )
 } 
