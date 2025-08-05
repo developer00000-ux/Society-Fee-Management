@@ -208,6 +208,8 @@ export interface Block {
   id: string
   block_name: string
   description: string | null
+  colony_id?: string
+  colony_name?: string
   created_at: string
 }
 

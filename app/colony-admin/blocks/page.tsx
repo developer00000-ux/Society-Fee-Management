@@ -6,7 +6,7 @@ import { Block } from '@/types/database'
 import Navbar from '../../components/Navbar'
 import ProtectedRoute from '../../components/ProtectedRoute'
 
-export default function BlockManagerBlocksPage() {
+export default function ColonyAdminBlocksPage() {
   const [blocks, setBlocks] = useState<Block[]>([])
   const [loading, setLoading] = useState(false)
   const [showForm, setShowForm] = useState(false)
@@ -138,13 +138,13 @@ export default function BlockManagerBlocksPage() {
   }
 
   return (
-    <ProtectedRoute requiredRoles={['block_manager']}>
+    <ProtectedRoute requiredRoles={['colony_admin']}>
       <div>
         <Navbar />
         <div className="max-w-4xl mx-auto p-6">
           <div className="flex items-center justify-between mb-6">
             <h1 className="text-3xl font-bold">Blocks Management</h1>
-            <Link href="/block-manager/dashboard" className="text-gray-600 hover:text-gray-800">
+            <Link href="/colony-admin/dashboard" className="text-gray-600 hover:text-gray-800">
               ← Back to Dashboard
             </Link>
           </div>

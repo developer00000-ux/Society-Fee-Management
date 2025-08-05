@@ -9,7 +9,7 @@ export async function PUT(
     const supabase = createServerClient()
     const body = await request.json()
     
-    const { block_name, description } = body
+    const { block_name, description, colony_id } = body
     const { id } = await params
 
     // Validate required fields
@@ -19,11 +19,18 @@ export async function PUT(
       }, { status: 400 })
     }
 
+    if (!colony_id) {
+      return NextResponse.json({ 
+        error: 'Colony is required' 
+      }, { status: 400 })
+    }
+
     const { data: building, error } = await supabase
       .from('buildings')
       .update({
         name: block_name.trim(),
-        building_type: description?.trim() || 'residential'
+        building_type: description?.trim() || 'residential',
+        colony_id: colony_id
       })
       .eq('id', id)
       .select()

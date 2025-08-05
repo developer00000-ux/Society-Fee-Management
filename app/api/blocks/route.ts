@@ -7,7 +7,13 @@ export async function GET() {
     
     const { data: buildings, error } = await supabase
       .from('buildings')
-      .select('*')
+      .select(`
+        *,
+        colonies(
+          id,
+          name
+        )
+      `)
       .order('name', { ascending: true })
 
     // Transform buildings to blocks format
@@ -15,6 +21,8 @@ export async function GET() {
       id: building.id,
       block_name: building.name,
       description: building.building_type,
+      colony_id: building.colony_id,
+      colony_name: building.colonies?.name || 'No Colony Assigned',
       created_at: building.created_at
     })) || []
 
@@ -44,7 +52,7 @@ export async function POST(request: NextRequest) {
     const supabase = createServerClient()
     const body = await request.json()
     
-    const { block_name, description } = body
+    const { block_name, description, colony_id } = body
 
     // Validate required fields
     if (!block_name || block_name.trim() === '') {
@@ -53,41 +61,10 @@ export async function POST(request: NextRequest) {
       }, { status: 400 })
     }
 
-    // First, get or create a default colony
-    let colonyId = '00000000-0000-0000-0000-000000000000'
-    
-    // Try to get an existing colony
-    const { data: existingColony, error: colonyError } = await supabase
-      .from('colonies')
-      .select('id')
-      .limit(1)
-      .single()
-
-    if (existingColony) {
-      colonyId = existingColony.id
-    } else {
-      // Create a default colony if none exists
-      const { data: newColony, error: createColonyError } = await supabase
-        .from('colonies')
-        .insert({
-          name: 'Default Colony',
-          address: 'Default Address',
-          city: 'Default City',
-          state: 'Default State',
-          pincode: '000000'
-        })
-        .select('id')
-        .single()
-
-      if (createColonyError) {
-        console.error('Error creating default colony:', createColonyError)
-        return NextResponse.json({ 
-          error: 'Failed to create default colony',
-          details: createColonyError.message 
-        }, { status: 500 })
-      }
-
-      colonyId = newColony.id
+    if (!colony_id) {
+      return NextResponse.json({ 
+        error: 'Colony is required' 
+      }, { status: 400 })
     }
 
     // Create a building as a block
@@ -98,7 +75,7 @@ export async function POST(request: NextRequest) {
         building_type: description?.trim() || 'residential',
         total_floors: 1,
         total_flats: 1,
-        colony_id: colonyId
+        colony_id: colony_id
       })
       .select()
       .single()
