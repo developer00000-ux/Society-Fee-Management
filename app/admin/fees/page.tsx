@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { getFeeEntries, deleteFeeEntry, createFeeEntry, getBlocks, getMembers, getFlats } from '@/lib/database'
 import { FeeEntry, Block, Member, Flat } from '@/types/database'
 import Navbar from '../../components/Navbar'
+import ProtectedRoute from '../../components/ProtectedRoute'
 
 export default function FeesPage() {
   const [entries, setEntries] = useState<FeeEntry[]>([])
@@ -144,7 +145,8 @@ export default function FeesPage() {
   const totalFee = calculateTotalFee()
 
   return (
-    <div>
+    <ProtectedRoute requiredRoles={['super_admin', 'colony_admin', 'block_manager']}>
+      <div>
       <Navbar />
       <div className="max-w-6xl mx-auto p-6">
         <div className="flex items-center justify-between mb-6">
@@ -495,5 +497,6 @@ export default function FeesPage() {
       </div>
       </div>
     </div>
+    </ProtectedRoute>
   )
 } 
