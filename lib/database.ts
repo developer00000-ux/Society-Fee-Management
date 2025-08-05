@@ -65,11 +65,179 @@ export async function deleteFeeEntry(id: string) {
   }
 }
 
-// Building functions (replacing blocks)
+// Block functions (working with buildings table as blocks)
+export async function createBlock(data: Omit<Block, 'id' | 'created_at'>) {
+  try {
+    // First, get or create a default colony
+    let colonyId = '00000000-0000-0000-0000-000000000000'
+    
+    // Try to get an existing colony
+    const { data: existingColony, error: colonyError } = await supabase
+      .from('colonies')
+      .select('id')
+      .limit(1)
+      .single()
+
+    if (existingColony) {
+      colonyId = existingColony.id
+    } else {
+      // Create a default colony if none exists
+      const { data: newColony, error: createColonyError } = await supabase
+        .from('colonies')
+        .insert({
+          name: 'Default Colony',
+          address: 'Default Address',
+          city: 'Default City',
+          state: 'Default State',
+          pincode: '000000'
+        })
+        .select('id')
+        .single()
+
+      if (createColonyError) {
+        console.error('Error creating default colony:', createColonyError)
+        throw new Error(`Error creating default colony: ${createColonyError.message}`)
+      }
+
+      colonyId = newColony.id
+    }
+
+    const { data: building, error } = await supabase
+      .from('buildings')
+      .insert({
+        name: data.block_name,
+        building_type: data.description || 'residential',
+        total_floors: 1,
+        total_flats: 1,
+        colony_id: colonyId
+      })
+      .select()
+      .single()
+
+    if (error) {
+      console.error('Database error creating building:', error)
+      throw new Error(`Error creating block: ${error.message}`)
+    }
+
+    // Transform building to block format
+    return {
+      id: building.id,
+      block_name: building.name,
+      description: building.building_type,
+      created_at: building.created_at
+    }
+  } catch (error) {
+    console.error('Error in createBlock:', error)
+    throw error
+  }
+}
+
+export async function getBlocks() {
+  try {
+    // Use service role client to bypass RLS for this query
+    const serverClient = createServerClient()
+    const { data: buildings, error } = await serverClient
+      .from('buildings')
+      .select('*')
+      .order('name', { ascending: true })
+
+    if (error) {
+      console.error('Error fetching buildings with service client:', error)
+      // Fallback to regular client if service client fails
+      const { data: fallbackBuildings, error: fallbackError } = await supabase
+        .from('buildings')
+        .select('*')
+        .order('name', { ascending: true })
+      
+      if (fallbackError) {
+        console.error('Error fetching buildings with fallback client:', fallbackError)
+        throw new Error(`Error fetching blocks: ${fallbackError.message}`)
+      }
+      
+      // Transform buildings to blocks format
+      return (fallbackBuildings || []).map(building => ({
+        id: building.id,
+        block_name: building.name,
+        description: building.building_type,
+        created_at: building.created_at
+      }))
+    }
+
+    // Transform buildings to blocks format
+    return (buildings || []).map(building => ({
+      id: building.id,
+      block_name: building.name,
+      description: building.building_type,
+      created_at: building.created_at
+    }))
+  } catch (error) {
+    console.error('Error in getBlocks:', error)
+    // Return empty array as fallback
+    return []
+  }
+}
+
+export async function updateBlock(id: string, data: Partial<Omit<Block, 'id' | 'created_at'>>) {
+  try {
+    const { data: building, error } = await supabase
+      .from('buildings')
+      .update({
+        name: data.block_name,
+        building_type: data.description || 'residential'
+      })
+      .eq('id', id)
+      .select()
+      .single()
+
+    if (error) {
+      console.error('Database error updating building:', error)
+      throw new Error(`Error updating block: ${error.message}`)
+    }
+
+    // Transform building to block format
+    return {
+      id: building.id,
+      block_name: building.name,
+      description: building.building_type,
+      created_at: building.created_at
+    }
+  } catch (error) {
+    console.error('Error in updateBlock:', error)
+    throw error
+  }
+}
+
+export async function deleteBlock(id: string) {
+  try {
+    const { error } = await supabase
+      .from('buildings')
+      .delete()
+      .eq('id', id)
+
+    if (error) {
+      console.error('Database error deleting building:', error)
+      throw new Error(`Error deleting block: ${error.message}`)
+    }
+  } catch (error) {
+    console.error('Error in deleteBlock:', error)
+    throw error
+  }
+}
+
+// Building functions (for backward compatibility)
 export async function createBuilding(data: Omit<Block, 'id' | 'created_at'>) {
+  // Convert block_name to name for buildings table
+  const buildingData = {
+    name: data.block_name,
+    building_type: 'residential',
+    total_floors: 1,
+    total_flats: 1,
+    colony_id: '550e8400-e29b-41d4-a716-446655440001' // Default colony
+  }
+  
   const { data: building, error } = await supabase
     .from('buildings')
-    .insert(data)
+    .insert(buildingData)
     .select()
     .single()
 
@@ -104,7 +272,15 @@ export async function getBuildings() {
       return fallbackBuildings || []
     }
 
-    return buildings || []
+    // Convert buildings to blocks format for backward compatibility
+    const blocks = buildings?.map(building => ({
+      id: building.id,
+      block_name: building.name,
+      description: building.building_type,
+      created_at: building.created_at
+    })) || []
+
+    return blocks
   } catch (error) {
     console.error('Error in getBuildings:', error)
     // Return empty array as fallback
@@ -113,9 +289,17 @@ export async function getBuildings() {
 }
 
 export async function updateBuilding(id: string, data: Partial<Omit<Block, 'id' | 'created_at'>>) {
+  // Convert block_name to name for buildings table
+  const buildingData = {
+    name: data.block_name,
+    building_type: 'residential',
+    total_floors: 1,
+    total_flats: 1
+  }
+  
   const { data: building, error } = await supabase
     .from('buildings')
-    .update(data)
+    .update(buildingData)
     .eq('id', id)
     .select()
     .single()
@@ -140,17 +324,23 @@ export async function deleteBuilding(id: string) {
 
 // Member functions
 export async function createMember(data: Omit<Member, 'id' | 'created_at'>) {
-  const { data: member, error } = await supabase
-    .from('members')
-    .insert(data)
-    .select()
-    .single()
+  try {
+    const { data: member, error } = await supabase
+      .from('members')
+      .insert(data)
+      .select()
+      .single()
 
-  if (error) {
-    throw new Error(`Error creating member: ${error.message}`)
+    if (error) {
+      console.error('Database error creating member:', error)
+      throw new Error(`Error creating member: ${error.message}`)
+    }
+
+    return member
+  } catch (error) {
+    console.error('Error in createMember:', error)
+    throw error
   }
-
-  return member
 }
 
 export async function getMembers() {
@@ -186,44 +376,62 @@ export async function getMembers() {
 }
 
 export async function updateMember(id: string, data: Partial<Omit<Member, 'id' | 'created_at'>>) {
-  const { data: member, error } = await supabase
-    .from('members')
-    .update(data)
-    .eq('id', id)
-    .select()
-    .single()
+  try {
+    const { data: member, error } = await supabase
+      .from('members')
+      .update(data)
+      .eq('id', id)
+      .select()
+      .single()
 
-  if (error) {
-    throw new Error(`Error updating member: ${error.message}`)
+    if (error) {
+      console.error('Database error updating member:', error)
+      throw new Error(`Error updating member: ${error.message}`)
+    }
+
+    return member
+  } catch (error) {
+    console.error('Error in updateMember:', error)
+    throw error
   }
-
-  return member
 }
 
 export async function deleteMember(id: string) {
-  const { error } = await supabase
-    .from('members')
-    .delete()
-    .eq('id', id)
+  try {
+    const { error } = await supabase
+      .from('members')
+      .delete()
+      .eq('id', id)
 
-  if (error) {
-    throw new Error(`Error deleting member: ${error.message}`)
+    if (error) {
+      console.error('Database error deleting member:', error)
+      throw new Error(`Error deleting member: ${error.message}`)
+    }
+  } catch (error) {
+    console.error('Error in deleteMember:', error)
+    throw error
   }
 }
 
 // Flat functions
 export async function createFlat(data: Omit<Flat, 'id' | 'created_at' | 'updated_at'>) {
-  const { data: flat, error } = await supabase
-    .from('flats')
-    .insert(data)
-    .select()
-    .single()
+  try {
+    const { data: flat, error } = await supabase
+      .from('flats')
+      .insert(data)
+      .select()
+      .single()
 
-  if (error) {
-    throw new Error(`Error creating flat: ${error.message}`)
+    if (error) {
+      console.error('Database error creating flat:', error)
+      throw new Error(`Error creating flat: ${error.message}`)
+    }
+
+    return flat
+  } catch (error) {
+    console.error('Error in createFlat:', error)
+    throw error
   }
-
-  return flat
 }
 
 export async function getFlats() {
@@ -259,33 +467,45 @@ export async function getFlats() {
 }
 
 export async function updateFlat(id: string, data: Partial<Omit<Flat, 'id' | 'created_at'>>) {
-  const { data: flat, error } = await supabase
-    .from('flats')
-    .update(data)
-    .eq('id', id)
-    .select()
-    .single()
+  try {
+    const { data: flat, error } = await supabase
+      .from('flats')
+      .update(data)
+      .eq('id', id)
+      .select()
+      .single()
 
-  if (error) {
-    throw new Error(`Error updating flat: ${error.message}`)
+    if (error) {
+      console.error('Database error updating flat:', error)
+      throw new Error(`Error updating flat: ${error.message}`)
+    }
+
+    return flat
+  } catch (error) {
+    console.error('Error in updateFlat:', error)
+    throw error
   }
-
-  return flat
 }
 
 export async function deleteFlat(id: string) {
-  const { error } = await supabase
-    .from('flats')
-    .delete()
-    .eq('id', id)
+  try {
+    const { error } = await supabase
+      .from('flats')
+      .delete()
+      .eq('id', id)
 
-  if (error) {
-    throw new Error(`Error deleting flat: ${error.message}`)
+    if (error) {
+      console.error('Database error deleting flat:', error)
+      throw new Error(`Error deleting flat: ${error.message}`)
+    }
+  } catch (error) {
+    console.error('Error in deleteFlat:', error)
+    throw error
   }
 }
 
 // Legacy function names for backward compatibility
-export const getBlocks = getBuildings
-export const createBlock = createBuilding
-export const updateBlock = updateBuilding
-export const deleteBlock = deleteBuilding 
+export const getBlocksLegacy = getBuildings
+export const createBlockLegacy = createBuilding
+export const updateBlockLegacy = updateBuilding
+export const deleteBlockLegacy = deleteBuilding 

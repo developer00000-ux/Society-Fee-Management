@@ -215,6 +215,93 @@ export async function createUserProfile(data: Omit<UserProfile, 'id' | 'created_
   return profile
 }
 
+// Create a resident user account (for block managers)
+export async function checkUserExists(email: string): Promise<boolean> {
+  const serverClient = createServerClient()
+  
+  const { data: { users }, error } = await serverClient.auth.admin.listUsers()
+  
+  if (error) {
+    throw new Error('Failed to check user existence')
+  }
+  
+  return users.some(user => user.email === email)
+}
+
+export async function createResidentUser(data: {
+  email: string
+  password: string
+  first_name: string
+  last_name: string
+  phone?: string
+  colony_id?: string
+  building_id?: string
+  flat_id?: string
+}): Promise<AuthUser> {
+  // Use service role client to create user
+  const serverClient = createServerClient()
+  
+  // Create user in Supabase Auth
+  const { data: { user }, error } = await serverClient.auth.admin.createUser({
+    email: data.email,
+    password: data.password,
+    email_confirm: true // Auto-confirm email
+  })
+
+  if (error) {
+    // Provide more specific error messages for common cases
+    if (error.message.includes('already been registered') || error.message.includes('already exists')) {
+      throw new Error('A user with this email address has already been registered')
+    }
+    throw new Error(error.message)
+  }
+
+  if (!user) {
+    throw new Error('Failed to create user')
+  }
+
+  // Create user profile
+  const { data: profile, error: profileError } = await serverClient
+    .from('user_profiles')
+    .insert({
+      id: user.id,
+      role: 'resident',
+      first_name: data.first_name,
+      last_name: data.last_name,
+      colony_id: data.colony_id,
+      building_id: data.building_id,
+      flat_id: data.flat_id,
+      phone: data.phone,
+      is_active: true
+    })
+    .select()
+    .single()
+
+  if (profileError) {
+    throw new Error('Failed to create user profile')
+  }
+
+  return {
+    id: user.id,
+    email: user.email!,
+    role: profile.role,
+    profile
+  }
+}
+
+// Update resident user password (for block managers)
+export async function updateResidentPassword(userId: string, newPassword: string): Promise<void> {
+  const serverClient = createServerClient()
+  
+  const { error } = await serverClient.auth.admin.updateUserById(userId, {
+    password: newPassword
+  })
+
+  if (error) {
+    throw new Error(error.message)
+  }
+}
+
 export async function getUserProfile(userId: string): Promise<UserProfile | null> {
   const { data: profile, error } = await supabase
     .from('user_profiles')

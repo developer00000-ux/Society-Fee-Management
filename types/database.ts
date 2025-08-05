@@ -91,6 +91,22 @@ export interface Flat {
   updated_at: string
 }
 
+// Extended Flat interface with relationships
+export interface FlatWithRelations extends Flat {
+  block_id?: string
+  block_name?: string
+  floors?: {
+    id: string
+    floor_number: number
+    floor_name?: string
+    building_id: string
+    buildings?: {
+      id: string
+      name: string
+    }
+  }
+}
+
 // Bill categories for flexible billing
 export interface BillCategory {
   id: string
@@ -200,6 +216,9 @@ export interface Member {
   name: string
   phone: string | null
   email: string | null
+  block_id: string | null
+  flat_id: string | null
+  user_id: string | null // Link to user account
   created_at: string
 }
 

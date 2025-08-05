@@ -178,52 +178,62 @@ CREATE TABLE IF NOT EXISTS fee_entries (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
-CREATE TABLE IF NOT EXISTS blocks (
-  id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
-  block_name TEXT NOT NULL,
-  description TEXT,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
 
+-- Members table (block_id references buildings table)
 CREATE TABLE IF NOT EXISTS members (
   id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
   name TEXT NOT NULL,
   phone TEXT,
   email TEXT,
+  block_id UUID REFERENCES buildings(id) ON DELETE SET NULL,
+  flat_id UUID REFERENCES flats(id) ON DELETE SET NULL,
+  user_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- Add foreign key constraints for user_profiles
-ALTER TABLE user_profiles 
-ADD CONSTRAINT fk_user_profiles_colony 
-FOREIGN KEY (colony_id) REFERENCES colonies(id) ON DELETE SET NULL;
+-- Add foreign key constraints for user_profiles (with error handling)
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name = 'fk_user_profiles_colony') THEN
+        ALTER TABLE user_profiles ADD CONSTRAINT fk_user_profiles_colony FOREIGN KEY (colony_id) REFERENCES colonies(id) ON DELETE SET NULL;
+    END IF;
+    
+    IF NOT EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name = 'fk_user_profiles_building') THEN
+        ALTER TABLE user_profiles ADD CONSTRAINT fk_user_profiles_building FOREIGN KEY (building_id) REFERENCES buildings(id) ON DELETE SET NULL;
+    END IF;
+    
+    IF NOT EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name = 'fk_user_profiles_flat') THEN
+        ALTER TABLE user_profiles ADD CONSTRAINT fk_user_profiles_flat FOREIGN KEY (flat_id) REFERENCES flats(id) ON DELETE SET NULL;
+    END IF;
+END $$;
 
-ALTER TABLE user_profiles 
-ADD CONSTRAINT fk_user_profiles_building 
-FOREIGN KEY (building_id) REFERENCES buildings(id) ON DELETE SET NULL;
+-- Add foreign key constraints for colonies (with error handling)
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name = 'fk_colonies_admin') THEN
+        ALTER TABLE colonies ADD CONSTRAINT fk_colonies_admin FOREIGN KEY (admin_id) REFERENCES user_profiles(id) ON DELETE SET NULL;
+    END IF;
+END $$;
 
-ALTER TABLE user_profiles 
-ADD CONSTRAINT fk_user_profiles_flat 
-FOREIGN KEY (flat_id) REFERENCES flats(id) ON DELETE SET NULL;
+-- Add foreign key constraints for buildings (with error handling)
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name = 'fk_buildings_manager') THEN
+        ALTER TABLE buildings ADD CONSTRAINT fk_buildings_manager FOREIGN KEY (manager_id) REFERENCES user_profiles(id) ON DELETE SET NULL;
+    END IF;
+END $$;
 
--- Add foreign key constraints for colonies
-ALTER TABLE colonies 
-ADD CONSTRAINT fk_colonies_admin 
-FOREIGN KEY (admin_id) REFERENCES user_profiles(id) ON DELETE SET NULL;
-
--- Add foreign key constraints for buildings
-ALTER TABLE buildings 
-ADD CONSTRAINT fk_buildings_manager 
-FOREIGN KEY (manager_id) REFERENCES user_profiles(id) ON DELETE SET NULL;
-
--- Add foreign key constraints for flats
-ALTER TABLE flats 
-ADD CONSTRAINT fk_flats_owner 
-FOREIGN KEY (owner_id) REFERENCES user_profiles(id) ON DELETE SET NULL;
-
-ALTER TABLE flats 
-ADD CONSTRAINT fk_flats_tenant 
-FOREIGN KEY (tenant_id) REFERENCES user_profiles(id) ON DELETE SET NULL;
+-- Add foreign key constraints for flats (with error handling)
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name = 'fk_flats_owner') THEN
+        ALTER TABLE flats ADD CONSTRAINT fk_flats_owner FOREIGN KEY (owner_id) REFERENCES user_profiles(id) ON DELETE SET NULL;
+    END IF;
+    
+    IF NOT EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name = 'fk_flats_tenant') THEN
+        ALTER TABLE flats ADD CONSTRAINT fk_flats_tenant FOREIGN KEY (tenant_id) REFERENCES user_profiles(id) ON DELETE SET NULL;
+    END IF;
+END $$;
 
 -- Note: Foreign key constraints for maintenance_requests are defined inline in the table creation
 
@@ -244,6 +254,9 @@ CREATE INDEX IF NOT EXISTS idx_maintenance_requests_flat_id ON maintenance_reque
 CREATE INDEX IF NOT EXISTS idx_maintenance_requests_status ON maintenance_requests(status);
 CREATE INDEX IF NOT EXISTS idx_announcements_scope_type ON announcements(scope_type);
 CREATE INDEX IF NOT EXISTS idx_announcements_scope_id ON announcements(scope_id);
+CREATE INDEX IF NOT EXISTS idx_members_block_id ON members(block_id);
+CREATE INDEX IF NOT EXISTS idx_members_flat_id ON members(flat_id);
+CREATE INDEX IF NOT EXISTS idx_members_user_id ON members(user_id);
 
 -- Create updated_at trigger function
 CREATE OR REPLACE FUNCTION update_updated_at_column()
@@ -296,7 +309,7 @@ ALTER TABLE maintenance_requests ENABLE ROW LEVEL SECURITY;
 ALTER TABLE announcements ENABLE ROW LEVEL SECURITY;
 ALTER TABLE user_sessions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE fee_entries ENABLE ROW LEVEL SECURITY;
-ALTER TABLE blocks ENABLE ROW LEVEL SECURITY;
+
 ALTER TABLE members ENABLE ROW LEVEL SECURITY;
 
 -- Create RLS policies for user_profiles
@@ -426,11 +439,11 @@ INSERT INTO bill_categories (name, description, applies_to, is_recurring) VALUES
 INSERT INTO colonies (id, name, address, city, state, pincode, total_buildings, total_flats) VALUES
 ('550e8400-e29b-41d4-a716-446655440001', 'Sunrise Colony', '123 Main Street', 'Mumbai', 'Maharashtra', '400001', 2, 16);
 
--- Insert default blocks
-INSERT INTO blocks (id, block_name, description) VALUES
-('550e8400-e29b-41d4-a716-446655440030', 'Block A', 'Main residential block'),
-('550e8400-e29b-41d4-a716-446655440031', 'Block B', 'Secondary residential block'),
-('550e8400-e29b-41d4-a716-446655440032', 'Block C', 'Commercial block');
+-- Insert default buildings (replacing blocks)
+INSERT INTO buildings (id, name, building_type, total_floors, total_flats, colony_id) VALUES
+('550e8400-e29b-41d4-a716-446655440030', 'Block A', 'residential', 4, 8, '550e8400-e29b-41d4-a716-446655440001'),
+('550e8400-e29b-41d4-a716-446655440031', 'Block B', 'residential', 4, 8, '550e8400-e29b-41d4-a716-446655440001'),
+('550e8400-e29b-41d4-a716-446655440032', 'Block C', 'commercial', 2, 4, '550e8400-e29b-41d4-a716-446655440001');
 
 -- Function to disable RLS for testing
 CREATE OR REPLACE FUNCTION disable_rls(table_name text)
