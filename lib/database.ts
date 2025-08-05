@@ -288,6 +288,34 @@ export async function getBuildings() {
   }
 }
 
+export async function getBuildingById(buildingId: string) {
+  try {
+    // Use service role client to bypass RLS for this query
+    const serverClient = createServerClient()
+    const { data: building, error } = await serverClient
+      .from('buildings')
+      .select('*')
+      .eq('id', buildingId)
+      .single()
+
+    if (error) {
+      console.error('Error fetching building by ID:', error)
+      return null
+    }
+
+    // Convert to block format for consistency
+    return {
+      id: building.id,
+      block_name: building.name,
+      description: building.building_type,
+      created_at: building.created_at
+    }
+  } catch (error) {
+    console.error('Error in getBuildingById:', error)
+    return null
+  }
+}
+
 export async function updateBuilding(id: string, data: Partial<Omit<Block, 'id' | 'created_at'>>) {
   // Convert block_name to name for buildings table
   const buildingData = {
@@ -372,6 +400,28 @@ export async function getMembers() {
     console.error('Error in getMembers:', error)
     // Return empty array as fallback
     return []
+  }
+}
+
+export async function getMemberByUserId(userId: string) {
+  try {
+    // Use service role client to bypass RLS for this query
+    const serverClient = createServerClient()
+    const { data: member, error } = await serverClient
+      .from('members')
+      .select('*')
+      .eq('user_id', userId)
+      .single()
+
+    if (error) {
+      console.error('Error fetching member by user ID:', error)
+      return null
+    }
+
+    return member
+  } catch (error) {
+    console.error('Error in getMemberByUserId:', error)
+    return null
   }
 }
 
@@ -463,6 +513,28 @@ export async function getFlats() {
     console.error('Error in getFlats:', error)
     // Return empty array as fallback
     return []
+  }
+}
+
+export async function getFlatById(flatId: string) {
+  try {
+    // Use service role client to bypass RLS for this query
+    const serverClient = createServerClient()
+    const { data: flat, error } = await serverClient
+      .from('flats')
+      .select('*')
+      .eq('id', flatId)
+      .single()
+
+    if (error) {
+      console.error('Error fetching flat by ID:', error)
+      return null
+    }
+
+    return flat
+  } catch (error) {
+    console.error('Error in getFlatById:', error)
+    return null
   }
 }
 
