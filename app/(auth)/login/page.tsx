@@ -15,6 +15,8 @@ export default function LoginPage() {
   const [error, setError] = useState('')
   const [setupLoading, setSetupLoading] = useState(false)
   const [setupMessage, setSetupMessage] = useState('')
+  const [createAuthLoading, setCreateAuthLoading] = useState(false)
+  const [createAuthMessage, setCreateAuthMessage] = useState('')
   const { signIn, user, loading: authLoading } = useAuth()
   const router = useRouter()
 
@@ -69,14 +71,40 @@ export default function LoginPage() {
       const data = await response.json()
       
       if (data.success) {
-        setSetupMessage('✅ Demo users created successfully! You can now login with the credentials below.')
+        setSetupMessage('✅ Demo data created successfully! Now create auth users to login.')
       } else {
-        setSetupMessage('❌ Error creating demo users: ' + data.error)
+        setSetupMessage('❌ Error creating demo data: ' + data.error)
       }
     } catch (error) {
       setSetupMessage('❌ Error: ' + (error instanceof Error ? error.message : 'Unknown error'))
     } finally {
       setSetupLoading(false)
+    }
+  }
+
+  const createDemoAuthUsers = async () => {
+    setCreateAuthLoading(true)
+    setCreateAuthMessage('')
+    
+    try {
+      const response = await fetch('/api/create-demo-auth-users', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      })
+      
+      const data = await response.json()
+      
+      if (data.success) {
+        setCreateAuthMessage('✅ Demo auth users created successfully! You can now login with the credentials below.')
+      } else {
+        setCreateAuthMessage('❌ Error creating demo auth users: ' + data.error)
+      }
+    } catch (error) {
+      setCreateAuthMessage('❌ Error: ' + (error instanceof Error ? error.message : 'Unknown error'))
+    } finally {
+      setCreateAuthLoading(false)
     }
   }
 
@@ -165,14 +193,22 @@ export default function LoginPage() {
                 Forgot your password?
               </a>
             </div>
-            <div className="text-sm">
+            <div className="text-sm space-y-2">
               <button
                 type="button"
                 onClick={setupDemoUsers}
                 disabled={setupLoading}
-                className="font-medium text-green-600 hover:text-green-500 disabled:text-gray-400"
+                className="block font-medium text-green-600 hover:text-green-500 disabled:text-gray-400"
               >
-                {setupLoading ? 'Setting up...' : 'Setup Demo Users'}
+                {setupLoading ? 'Setting up...' : 'Setup Demo Data'}
+              </button>
+              <button
+                type="button"
+                onClick={createDemoAuthUsers}
+                disabled={createAuthLoading}
+                className="block font-medium text-blue-600 hover:text-blue-500 disabled:text-gray-400"
+              >
+                {createAuthLoading ? 'Creating...' : 'Create Demo Auth Users'}
               </button>
             </div>
           </div>
@@ -205,6 +241,13 @@ export default function LoginPage() {
                 </p>
               </div>
             )}
+            {createAuthMessage && (
+              <div className="mt-4 p-3 rounded-md text-sm">
+                <p className={createAuthMessage.includes('✅') ? 'text-green-700 bg-green-50' : 'text-red-700 bg-red-50'}>
+                  {createAuthMessage}
+                </p>
+              </div>
+            )}
 
             <div className="mt-6">
               <div className="relative">
@@ -221,37 +264,31 @@ export default function LoginPage() {
               <div className="mt-6 grid grid-cols-1 gap-3">
                 <div className="bg-white p-4 rounded-lg border border-gray-200">
                   <h3 className="text-sm font-medium text-gray-900 mb-2">Super Admin</h3>
-                  <p className="text-xs text-gray-500 mb-2">superadmin@example.com / password123</p>
+                  <p className="text-xs text-gray-500 mb-2">superadmin@demo.com / superadmin123</p>
                   <p className="text-xs text-gray-400">Full system access</p>
                 </div>
                 
                 <div className="bg-white p-4 rounded-lg border border-gray-200">
                   <h3 className="text-sm font-medium text-gray-900 mb-2">Colony Admin</h3>
-                  <p className="text-xs text-gray-500 mb-2">colonyadmin@example.com / password123</p>
+                  <p className="text-xs text-gray-500 mb-2">colonyadmin@demo.com / colonyadmin123</p>
                   <p className="text-xs text-gray-400">Colony management</p>
                 </div>
                 
                 <div className="bg-white p-4 rounded-lg border border-gray-200">
                   <h3 className="text-sm font-medium text-gray-900 mb-2">Block Manager</h3>
-                  <p className="text-xs text-gray-500 mb-2">blockmanager@example.com / password123</p>
+                  <p className="text-xs text-gray-500 mb-2">blockmanager@demo.com / blockmanager123</p>
                   <p className="text-xs text-gray-400">Building management</p>
                 </div>
                 
                 <div className="bg-white p-4 rounded-lg border border-gray-200">
                   <h3 className="text-sm font-medium text-gray-900 mb-2">Resident 1</h3>
-                  <p className="text-xs text-gray-500 mb-2">resident1@example.com / password123</p>
+                  <p className="text-xs text-gray-500 mb-2">resident1@demo.com / resident123</p>
                   <p className="text-xs text-gray-400">Personal dashboard</p>
                 </div>
                 
                 <div className="bg-white p-4 rounded-lg border border-gray-200">
                   <h3 className="text-sm font-medium text-gray-900 mb-2">Resident 2</h3>
-                  <p className="text-xs text-gray-500 mb-2">resident2@example.com / password123</p>
-                  <p className="text-xs text-gray-400">Personal dashboard</p>
-                </div>
-                
-                <div className="bg-white p-4 rounded-lg border border-gray-200">
-                  <h3 className="text-sm font-medium text-gray-900 mb-2">Resident 3</h3>
-                  <p className="text-xs text-gray-500 mb-2">resident3@example.com / password123</p>
+                  <p className="text-xs text-gray-500 mb-2">resident2@demo.com / resident123</p>
                   <p className="text-xs text-gray-400">Personal dashboard</p>
                 </div>
               </div>

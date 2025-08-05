@@ -1,56 +1,19 @@
--- Drop existing tables in reverse dependency order
-DROP TABLE IF EXISTS maintenance_requests CASCADE;
-DROP TABLE IF EXISTS payments CASCADE;
-DROP TABLE IF EXISTS bills CASCADE;
-DROP TABLE IF EXISTS bill_categories CASCADE;
-DROP TABLE IF EXISTS announcements CASCADE;
-DROP TABLE IF EXISTS user_sessions CASCADE;
-DROP TABLE IF EXISTS flats CASCADE;
-DROP TABLE IF EXISTS floors CASCADE;
-DROP TABLE IF EXISTS buildings CASCADE;
-DROP TABLE IF EXISTS colonies CASCADE;
-DROP TABLE IF EXISTS user_profiles CASCADE;
-
--- Drop existing types
-DROP TYPE IF EXISTS user_role CASCADE;
-DROP TYPE IF EXISTS flat_status CASCADE;
-DROP TYPE IF EXISTS bill_status CASCADE;
-DROP TYPE IF EXISTS payment_status CASCADE;
-DROP TYPE IF EXISTS maintenance_priority CASCADE;
-DROP TYPE IF EXISTS maintenance_status CASCADE;
-DROP TYPE IF EXISTS announcement_type CASCADE;
-DROP TYPE IF EXISTS announcement_scope CASCADE;
-DROP TYPE IF EXISTS subscription_plan CASCADE;
-DROP TYPE IF EXISTS subscription_status CASCADE;
-
 -- Enable UUID extension
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
--- Create ENUM types
-CREATE TYPE user_role AS ENUM ('super_admin', 'colony_admin', 'block_manager', 'resident');
-CREATE TYPE flat_status AS ENUM ('vacant', 'occupied', 'rented', 'maintenance');
-CREATE TYPE bill_status AS ENUM ('pending', 'paid', 'overdue', 'cancelled');
-CREATE TYPE payment_status AS ENUM ('pending', 'success', 'failed', 'refunded');
-CREATE TYPE maintenance_priority AS ENUM ('low', 'medium', 'high', 'urgent');
-CREATE TYPE maintenance_status AS ENUM ('pending', 'assigned', 'in_progress', 'completed', 'cancelled');
-CREATE TYPE announcement_type AS ENUM ('general', 'maintenance', 'billing', 'emergency', 'event');
-CREATE TYPE announcement_scope AS ENUM ('colony', 'building', 'floor', 'flat');
-CREATE TYPE subscription_plan AS ENUM ('starter', 'professional', 'enterprise');
-CREATE TYPE subscription_status AS ENUM ('active', 'inactive', 'suspended');
-
 -- User profiles table (extends Supabase auth.users)
 CREATE TABLE IF NOT EXISTS user_profiles (
-  id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
-  role user_role NOT NULL DEFAULT 'resident',
-  colony_id UUID, -- NULL for super_admin
-  building_id UUID, -- NULL for super_admin, colony_admin  
-  flat_id UUID, -- Only for residents
-  first_name VARCHAR(100) NOT NULL,
-  last_name VARCHAR(100) NOT NULL,
-  phone VARCHAR(20),
+  id UUID REFERENCES auth.users(id) ON DELETE CASCADE PRIMARY KEY,
+  role TEXT NOT NULL CHECK (role IN ('super_admin', 'colony_admin', 'block_manager', 'resident')),
+  colony_id UUID,
+  building_id UUID,
+  flat_id UUID,
+  first_name TEXT NOT NULL,
+  last_name TEXT NOT NULL,
+  phone TEXT,
   avatar_url TEXT,
-  emergency_contact_name VARCHAR(100),
-  emergency_contact_phone VARCHAR(20),
+  emergency_contact_name TEXT,
+  emergency_contact_phone TEXT,
   is_active BOOLEAN DEFAULT true,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
@@ -58,29 +21,29 @@ CREATE TABLE IF NOT EXISTS user_profiles (
 
 -- Colonies (Residential complexes)
 CREATE TABLE IF NOT EXISTS colonies (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  name VARCHAR(255) NOT NULL,
+  id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  name TEXT NOT NULL,
   address TEXT NOT NULL,
-  city VARCHAR(100) NOT NULL,
-  state VARCHAR(100) NOT NULL,
-  pincode VARCHAR(10) NOT NULL,
+  city TEXT NOT NULL,
+  state TEXT NOT NULL,
+  pincode TEXT NOT NULL,
   total_buildings INTEGER DEFAULT 0,
   total_flats INTEGER DEFAULT 0,
   admin_id UUID REFERENCES user_profiles(id),
-  subscription_plan subscription_plan DEFAULT 'starter',
-  subscription_status subscription_status DEFAULT 'active',
+  subscription_plan TEXT DEFAULT 'starter' CHECK (subscription_plan IN ('starter', 'professional', 'enterprise')),
+  subscription_status TEXT DEFAULT 'active' CHECK (subscription_status IN ('active', 'inactive', 'suspended')),
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
 -- Buildings/Blocks within colonies
 CREATE TABLE IF NOT EXISTS buildings (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  colony_id UUID REFERENCES colonies(id) ON DELETE CASCADE,
-  name VARCHAR(100) NOT NULL,
-  building_type VARCHAR(50) DEFAULT 'residential',
+  id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  colony_id UUID NOT NULL REFERENCES colonies(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  building_type TEXT NOT NULL,
   total_floors INTEGER NOT NULL,
-  total_flats INTEGER DEFAULT 0,
+  total_flats INTEGER NOT NULL,
   manager_id UUID REFERENCES user_profiles(id),
   has_lift BOOLEAN DEFAULT false,
   has_parking BOOLEAN DEFAULT false,
@@ -89,27 +52,26 @@ CREATE TABLE IF NOT EXISTS buildings (
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- Floors within buildings  
+-- Floors within buildings
 CREATE TABLE IF NOT EXISTS floors (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  building_id UUID REFERENCES buildings(id) ON DELETE CASCADE,
+  id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  building_id UUID NOT NULL REFERENCES buildings(id) ON DELETE CASCADE,
   floor_number INTEGER NOT NULL,
-  floor_name VARCHAR(50), -- 'Ground Floor', 'First Floor', etc.
+  floor_name TEXT,
   total_flats INTEGER NOT NULL,
   base_maintenance_charge DECIMAL(10,2) DEFAULT 0,
-  floor_area_sqft DECIMAL(10,2),
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  UNIQUE(building_id, floor_number)
+  floor_area_sqft INTEGER,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
 -- Individual flats/units
 CREATE TABLE IF NOT EXISTS flats (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  floor_id UUID REFERENCES floors(id) ON DELETE CASCADE,
-  flat_number VARCHAR(50) NOT NULL,
-  flat_type VARCHAR(20) DEFAULT '2bhk',
-  area_sqft DECIMAL(10,2),
-  status flat_status DEFAULT 'vacant',
+  id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  floor_id UUID NOT NULL REFERENCES floors(id) ON DELETE CASCADE,
+  flat_number TEXT NOT NULL,
+  flat_type TEXT NOT NULL,
+  area_sqft INTEGER,
+  status TEXT DEFAULT 'vacant' CHECK (status IN ('vacant', 'occupied', 'rented', 'maintenance')),
   monthly_rent DECIMAL(10,2) DEFAULT 0,
   security_deposit DECIMAL(10,2) DEFAULT 0,
   owner_id UUID REFERENCES user_profiles(id),
@@ -117,86 +79,84 @@ CREATE TABLE IF NOT EXISTS flats (
   lease_start_date DATE,
   lease_end_date DATE,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  UNIQUE(floor_id, flat_number)
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
 -- Bill categories for flexible billing
 CREATE TABLE IF NOT EXISTS bill_categories (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  name VARCHAR(100) NOT NULL, -- 'rent', 'maintenance', 'electricity', 'water', 'security'
+  id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  name TEXT NOT NULL,
   description TEXT,
-  applies_to announcement_scope NOT NULL,
-  is_recurring BOOLEAN DEFAULT true,
-  is_active BOOLEAN DEFAULT true,
+  applies_to TEXT NOT NULL CHECK (applies_to IN ('colony', 'building', 'floor', 'flat')),
+  is_recurring BOOLEAN DEFAULT false,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- Monthly bills for residents
+-- Bills
 CREATE TABLE IF NOT EXISTS bills (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  flat_id UUID REFERENCES flats(id) ON DELETE CASCADE,
-  category_id UUID REFERENCES bill_categories(id),
+  id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  flat_id UUID NOT NULL REFERENCES flats(id) ON DELETE CASCADE,
+  category_id UUID NOT NULL REFERENCES bill_categories(id),
   amount DECIMAL(10,2) NOT NULL,
-  billing_month DATE NOT NULL, -- First day of billing month
+  billing_month TEXT NOT NULL,
   due_date DATE NOT NULL,
-  status bill_status DEFAULT 'pending',
+  status TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'paid', 'overdue', 'cancelled')),
   description TEXT,
-  created_by UUID REFERENCES user_profiles(id),
+  created_by UUID NOT NULL REFERENCES user_profiles(id),
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- Payment records
+-- Payments
 CREATE TABLE IF NOT EXISTS payments (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  bill_id UUID REFERENCES bills(id) ON DELETE CASCADE,
+  id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  bill_id UUID NOT NULL REFERENCES bills(id) ON DELETE CASCADE,
   amount DECIMAL(10,2) NOT NULL,
-  payment_method VARCHAR(50),
+  payment_method TEXT,
   payment_date TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  transaction_id VARCHAR(255) UNIQUE,
+  transaction_id TEXT,
   gateway_response JSONB,
-  status payment_status DEFAULT 'pending',
+  status TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'success', 'failed', 'refunded')),
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- Maintenance requests from residents
+-- Maintenance requests
 CREATE TABLE IF NOT EXISTS maintenance_requests (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  flat_id UUID REFERENCES flats(id) ON DELETE CASCADE,
-  category VARCHAR(50), -- 'plumbing', 'electrical', 'appliance', 'structural', 'cleaning', 'other'
-  title VARCHAR(255) NOT NULL,
+  id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  flat_id UUID NOT NULL REFERENCES flats(id) ON DELETE CASCADE,
+  category TEXT,
+  title TEXT NOT NULL,
   description TEXT NOT NULL,
-  priority maintenance_priority DEFAULT 'medium',
-  status maintenance_status DEFAULT 'pending',
+  priority TEXT DEFAULT 'medium' CHECK (priority IN ('low', 'medium', 'high', 'urgent')),
+  status TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'assigned', 'in_progress', 'completed', 'cancelled')),
   estimated_cost DECIMAL(10,2),
   actual_cost DECIMAL(10,2),
-  assigned_to VARCHAR(255), -- Vendor/maintenance person
-  created_by UUID REFERENCES user_profiles(id),
-  resolved_by UUID REFERENCES user_profiles(id),
+  assigned_to UUID REFERENCES user_profiles(id) ON DELETE SET NULL,
+  created_by UUID NOT NULL REFERENCES user_profiles(id),
+  resolved_by UUID REFERENCES user_profiles(id) ON DELETE SET NULL,
   resolved_at TIMESTAMP WITH TIME ZONE,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- Announcements and notifications
+-- Announcements
 CREATE TABLE IF NOT EXISTS announcements (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  title VARCHAR(255) NOT NULL,
+  id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  title TEXT NOT NULL,
   content TEXT NOT NULL,
-  type announcement_type DEFAULT 'general',
-  scope_type announcement_scope NOT NULL,
-  scope_id UUID, -- ID of colony/building/floor/flat depending on scope_type
+  type TEXT NOT NULL CHECK (type IN ('general', 'maintenance', 'billing', 'emergency', 'event')),
+  scope_type TEXT NOT NULL CHECK (scope_type IN ('colony', 'building', 'floor', 'flat')),
+  scope_id UUID,
   is_urgent BOOLEAN DEFAULT false,
-  valid_until DATE,
-  created_by UUID REFERENCES user_profiles(id),
+  valid_until TIMESTAMP WITH TIME ZONE,
+  created_by UUID NOT NULL REFERENCES user_profiles(id) ON DELETE CASCADE,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- Session tracking for security
+-- User sessions for tracking login/logout
 CREATE TABLE IF NOT EXISTS user_sessions (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+  id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  user_id UUID NOT NULL REFERENCES user_profiles(id) ON DELETE CASCADE,
   ip_address INET,
   user_agent TEXT,
   login_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
@@ -204,43 +164,124 @@ CREATE TABLE IF NOT EXISTS user_sessions (
   is_active BOOLEAN DEFAULT true
 );
 
+-- Legacy tables for backward compatibility
+CREATE TABLE IF NOT EXISTS fee_entries (
+  id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  block TEXT NOT NULL,
+  member_name TEXT NOT NULL,
+  flat_number TEXT NOT NULL,
+  months TEXT[] NOT NULL,
+  fee DECIMAL(10,2) NOT NULL,
+  total_fee DECIMAL(10,2) NOT NULL,
+  payment_type TEXT NOT NULL,
+  remarks TEXT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS blocks (
+  id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  block_name TEXT NOT NULL,
+  description TEXT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS members (
+  id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  name TEXT NOT NULL,
+  phone TEXT,
+  email TEXT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Add foreign key constraints for user_profiles
+ALTER TABLE user_profiles 
+ADD CONSTRAINT fk_user_profiles_colony 
+FOREIGN KEY (colony_id) REFERENCES colonies(id) ON DELETE SET NULL;
+
+ALTER TABLE user_profiles 
+ADD CONSTRAINT fk_user_profiles_building 
+FOREIGN KEY (building_id) REFERENCES buildings(id) ON DELETE SET NULL;
+
+ALTER TABLE user_profiles 
+ADD CONSTRAINT fk_user_profiles_flat 
+FOREIGN KEY (flat_id) REFERENCES flats(id) ON DELETE SET NULL;
+
+-- Add foreign key constraints for colonies
+ALTER TABLE colonies 
+ADD CONSTRAINT fk_colonies_admin 
+FOREIGN KEY (admin_id) REFERENCES user_profiles(id) ON DELETE SET NULL;
+
+-- Add foreign key constraints for buildings
+ALTER TABLE buildings 
+ADD CONSTRAINT fk_buildings_manager 
+FOREIGN KEY (manager_id) REFERENCES user_profiles(id) ON DELETE SET NULL;
+
+-- Add foreign key constraints for flats
+ALTER TABLE flats 
+ADD CONSTRAINT fk_flats_owner 
+FOREIGN KEY (owner_id) REFERENCES user_profiles(id) ON DELETE SET NULL;
+
+ALTER TABLE flats 
+ADD CONSTRAINT fk_flats_tenant 
+FOREIGN KEY (tenant_id) REFERENCES user_profiles(id) ON DELETE SET NULL;
+
+-- Note: Foreign key constraints for maintenance_requests are defined inline in the table creation
+
+-- Note: Foreign key constraints for announcements are defined inline in the table creation
+
 -- Create indexes for better performance
 CREATE INDEX IF NOT EXISTS idx_user_profiles_role ON user_profiles(role);
 CREATE INDEX IF NOT EXISTS idx_user_profiles_colony_id ON user_profiles(colony_id);
 CREATE INDEX IF NOT EXISTS idx_user_profiles_building_id ON user_profiles(building_id);
 CREATE INDEX IF NOT EXISTS idx_user_profiles_flat_id ON user_profiles(flat_id);
-
-CREATE INDEX IF NOT EXISTS idx_colonies_admin_id ON colonies(admin_id);
-CREATE INDEX IF NOT EXISTS idx_colonies_subscription_status ON colonies(subscription_status);
-
 CREATE INDEX IF NOT EXISTS idx_buildings_colony_id ON buildings(colony_id);
-CREATE INDEX IF NOT EXISTS idx_buildings_manager_id ON buildings(manager_id);
-
 CREATE INDEX IF NOT EXISTS idx_floors_building_id ON floors(building_id);
-CREATE INDEX IF NOT EXISTS idx_floors_floor_number ON floors(floor_number);
-
 CREATE INDEX IF NOT EXISTS idx_flats_floor_id ON flats(floor_id);
-CREATE INDEX IF NOT EXISTS idx_flats_owner_id ON flats(owner_id);
-CREATE INDEX IF NOT EXISTS idx_flats_tenant_id ON flats(tenant_id);
-CREATE INDEX IF NOT EXISTS idx_flats_status ON flats(status);
-
 CREATE INDEX IF NOT EXISTS idx_bills_flat_id ON bills(flat_id);
 CREATE INDEX IF NOT EXISTS idx_bills_status ON bills(status);
-CREATE INDEX IF NOT EXISTS idx_bills_billing_month ON bills(billing_month);
-
 CREATE INDEX IF NOT EXISTS idx_payments_bill_id ON payments(bill_id);
-CREATE INDEX IF NOT EXISTS idx_payments_status ON payments(status);
-
 CREATE INDEX IF NOT EXISTS idx_maintenance_requests_flat_id ON maintenance_requests(flat_id);
 CREATE INDEX IF NOT EXISTS idx_maintenance_requests_status ON maintenance_requests(status);
-CREATE INDEX IF NOT EXISTS idx_maintenance_requests_priority ON maintenance_requests(priority);
-
 CREATE INDEX IF NOT EXISTS idx_announcements_scope_type ON announcements(scope_type);
 CREATE INDEX IF NOT EXISTS idx_announcements_scope_id ON announcements(scope_id);
-CREATE INDEX IF NOT EXISTS idx_announcements_type ON announcements(type);
 
-CREATE INDEX IF NOT EXISTS idx_user_sessions_user_id ON user_sessions(user_id);
-CREATE INDEX IF NOT EXISTS idx_user_sessions_is_active ON user_sessions(is_active);
+-- Create updated_at trigger function
+CREATE OR REPLACE FUNCTION update_updated_at_column()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = NOW();
+    RETURN NEW;
+END;
+$$ language 'plpgsql';
+
+-- Create triggers for updated_at (with error handling)
+DO $$
+BEGIN
+    -- Create triggers only if they don't exist
+    IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'update_user_profiles_updated_at') THEN
+        CREATE TRIGGER update_user_profiles_updated_at BEFORE UPDATE ON user_profiles FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+    END IF;
+    
+    IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'update_colonies_updated_at') THEN
+        CREATE TRIGGER update_colonies_updated_at BEFORE UPDATE ON colonies FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+    END IF;
+    
+    IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'update_buildings_updated_at') THEN
+        CREATE TRIGGER update_buildings_updated_at BEFORE UPDATE ON buildings FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+    END IF;
+    
+    IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'update_flats_updated_at') THEN
+        CREATE TRIGGER update_flats_updated_at BEFORE UPDATE ON flats FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+    END IF;
+    
+    IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'update_bills_updated_at') THEN
+        CREATE TRIGGER update_bills_updated_at BEFORE UPDATE ON bills FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+    END IF;
+    
+    IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'update_maintenance_requests_updated_at') THEN
+        CREATE TRIGGER update_maintenance_requests_updated_at BEFORE UPDATE ON maintenance_requests FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+    END IF;
+END $$;
 
 -- Enable Row Level Security (RLS)
 ALTER TABLE user_profiles ENABLE ROW LEVEL SECURITY;
@@ -254,168 +295,155 @@ ALTER TABLE payments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE maintenance_requests ENABLE ROW LEVEL SECURITY;
 ALTER TABLE announcements ENABLE ROW LEVEL SECURITY;
 ALTER TABLE user_sessions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE fee_entries ENABLE ROW LEVEL SECURITY;
+ALTER TABLE blocks ENABLE ROW LEVEL SECURITY;
+ALTER TABLE members ENABLE ROW LEVEL SECURITY;
 
--- Drop existing policies if they exist
-DROP POLICY IF EXISTS "user_profiles_policy" ON user_profiles;
-DROP POLICY IF EXISTS "colonies_policy" ON colonies;
-DROP POLICY IF EXISTS "buildings_policy" ON buildings;
-DROP POLICY IF EXISTS "floors_policy" ON floors;
-DROP POLICY IF EXISTS "flats_policy" ON flats;
-DROP POLICY IF EXISTS "bill_categories_policy" ON bill_categories;
-DROP POLICY IF EXISTS "bills_policy" ON bills;
-DROP POLICY IF EXISTS "payments_policy" ON payments;
-DROP POLICY IF EXISTS "maintenance_requests_policy" ON maintenance_requests;
-DROP POLICY IF EXISTS "announcements_policy" ON announcements;
-DROP POLICY IF EXISTS "user_sessions_policy" ON user_sessions;
-
--- Create RLS policies
--- Users can only see their own profile and users they manage
-CREATE POLICY "user_profiles_policy" ON user_profiles FOR ALL USING (
-  auth.uid() = id OR
-  (auth.jwt() ->> 'role' = 'super_admin') OR
-  (auth.jwt() ->> 'role' = 'colony_admin' AND colony_id = (SELECT colony_id FROM user_profiles WHERE id = auth.uid())) OR
-  (auth.jwt() ->> 'role' = 'block_manager' AND building_id = (SELECT building_id FROM user_profiles WHERE id = auth.uid()))
-);
-
--- Colony access based on role
-CREATE POLICY "colonies_policy" ON colonies FOR ALL USING (
-  (auth.jwt() ->> 'role' = 'super_admin') OR
-  (auth.jwt() ->> 'role' = 'colony_admin' AND admin_id = auth.uid()) OR
-  (auth.jwt() ->> 'role' IN ('block_manager', 'resident') AND id = (SELECT colony_id FROM user_profiles WHERE id = auth.uid()))
-);
-
--- Building access based on role and colony
-CREATE POLICY "buildings_policy" ON buildings FOR ALL USING (
-  (auth.jwt() ->> 'role' = 'super_admin') OR
-  (auth.jwt() ->> 'role' = 'colony_admin' AND colony_id = (SELECT colony_id FROM user_profiles WHERE id = auth.uid())) OR
-  (auth.jwt() ->> 'role' = 'block_manager' AND manager_id = auth.uid()) OR
-  (auth.jwt() ->> 'role' = 'resident' AND id = (SELECT building_id FROM user_profiles WHERE id = auth.uid()))
-);
-
--- Floor access based on building
-CREATE POLICY "floors_policy" ON floors FOR ALL USING (
-  (auth.jwt() ->> 'role' = 'super_admin') OR
-  (auth.jwt() ->> 'role' = 'colony_admin' AND building_id IN (SELECT id FROM buildings WHERE colony_id = (SELECT colony_id FROM user_profiles WHERE id = auth.uid()))) OR
-  (auth.jwt() ->> 'role' = 'block_manager' AND building_id = (SELECT building_id FROM user_profiles WHERE id = auth.uid())) OR
-  (auth.jwt() ->> 'role' = 'resident' AND building_id = (SELECT building_id FROM user_profiles WHERE id = auth.uid()))
-);
-
--- Flat access based on role
-CREATE POLICY "flats_policy" ON flats FOR ALL USING (
-  (auth.jwt() ->> 'role' = 'super_admin') OR
-  (auth.jwt() ->> 'role' = 'colony_admin' AND floor_id IN (SELECT id FROM floors WHERE building_id IN (SELECT id FROM buildings WHERE colony_id = (SELECT colony_id FROM user_profiles WHERE id = auth.uid())))) OR
-  (auth.jwt() ->> 'role' = 'block_manager' AND floor_id IN (SELECT id FROM floors WHERE building_id = (SELECT building_id FROM user_profiles WHERE id = auth.uid()))) OR
-  (auth.jwt() ->> 'role' = 'resident' AND (owner_id = auth.uid() OR tenant_id = auth.uid()))
-);
-
--- Bill categories - all roles can read
-CREATE POLICY "bill_categories_policy" ON bill_categories FOR ALL USING (true);
-
--- Bills access based on flat ownership
-CREATE POLICY "bills_policy" ON bills FOR ALL USING (
-  (auth.jwt() ->> 'role' = 'super_admin') OR
-  (auth.jwt() ->> 'role' = 'colony_admin' AND flat_id IN (SELECT id FROM flats WHERE floor_id IN (SELECT id FROM floors WHERE building_id IN (SELECT id FROM buildings WHERE colony_id = (SELECT colony_id FROM user_profiles WHERE id = auth.uid()))))) OR
-  (auth.jwt() ->> 'role' = 'block_manager' AND flat_id IN (SELECT id FROM flats WHERE floor_id IN (SELECT id FROM floors WHERE building_id = (SELECT building_id FROM user_profiles WHERE id = auth.uid())))) OR
-  (auth.jwt() ->> 'role' = 'resident' AND flat_id IN (SELECT id FROM flats WHERE owner_id = auth.uid() OR tenant_id = auth.uid()))
-);
-
--- Payments access based on bill ownership
-CREATE POLICY "payments_policy" ON payments FOR ALL USING (
-  (auth.jwt() ->> 'role' = 'super_admin') OR
-  (auth.jwt() ->> 'role' = 'colony_admin' AND bill_id IN (SELECT id FROM bills WHERE flat_id IN (SELECT id FROM flats WHERE floor_id IN (SELECT id FROM floors WHERE building_id IN (SELECT id FROM buildings WHERE colony_id = (SELECT colony_id FROM user_profiles WHERE id = auth.uid())))))) OR
-  (auth.jwt() ->> 'role' = 'block_manager' AND bill_id IN (SELECT id FROM bills WHERE flat_id IN (SELECT id FROM flats WHERE floor_id IN (SELECT id FROM floors WHERE building_id = (SELECT building_id FROM user_profiles WHERE id = auth.uid()))))) OR
-  (auth.jwt() ->> 'role' = 'resident' AND bill_id IN (SELECT id FROM bills WHERE flat_id IN (SELECT id FROM flats WHERE owner_id = auth.uid() OR tenant_id = auth.uid())))
-);
-
--- Maintenance requests access
-CREATE POLICY "maintenance_requests_policy" ON maintenance_requests FOR ALL USING (
-  (auth.jwt() ->> 'role' = 'super_admin') OR
-  (auth.jwt() ->> 'role' = 'colony_admin' AND flat_id IN (SELECT id FROM flats WHERE floor_id IN (SELECT id FROM floors WHERE building_id IN (SELECT id FROM buildings WHERE colony_id = (SELECT colony_id FROM user_profiles WHERE id = auth.uid()))))) OR
-  (auth.jwt() ->> 'role' = 'block_manager' AND flat_id IN (SELECT id FROM flats WHERE floor_id IN (SELECT id FROM floors WHERE building_id = (SELECT building_id FROM user_profiles WHERE id = auth.uid())))) OR
-  (auth.jwt() ->> 'role' = 'resident' AND created_by = auth.uid())
-);
-
--- Announcements access based on scope
-CREATE POLICY "announcements_policy" ON announcements FOR ALL USING (
-  (auth.jwt() ->> 'role' = 'super_admin') OR
-  (auth.jwt() ->> 'role' = 'colony_admin' AND (scope_type = 'colony' AND scope_id = (SELECT colony_id FROM user_profiles WHERE id = auth.uid()))) OR
-  (auth.jwt() ->> 'role' = 'block_manager' AND (scope_type = 'building' AND scope_id = (SELECT building_id FROM user_profiles WHERE id = auth.uid()))) OR
-  (auth.jwt() ->> 'role' = 'resident' AND (
-    (scope_type = 'colony' AND scope_id = (SELECT colony_id FROM user_profiles WHERE id = auth.uid())) OR
-    (scope_type = 'building' AND scope_id = (SELECT building_id FROM user_profiles WHERE id = auth.uid())) OR
-    (scope_type = 'flat' AND scope_id = (SELECT flat_id FROM user_profiles WHERE id = auth.uid()))
-  ))
-);
-
--- User sessions - users can only see their own sessions
-CREATE POLICY "user_sessions_policy" ON user_sessions FOR ALL USING (
-  user_id = auth.uid()
-);
-
--- Insert default bill categories
-INSERT INTO bill_categories (name, description, applies_to, is_recurring) VALUES
-('Rent', 'Monthly rent payment', 'flat', true),
-('Maintenance', 'Monthly maintenance charges', 'flat', true),
-('Electricity', 'Electricity bill', 'flat', true),
-('Water', 'Water bill', 'flat', true),
-('Security', 'Security guard charges', 'building', true),
-('Lift Maintenance', 'Lift maintenance and repair', 'building', true),
-('Garden Maintenance', 'Garden and landscaping', 'colony', true),
-('Common Area', 'Common area maintenance', 'colony', true),
-('Parking', 'Parking charges', 'flat', true),
-('Garbage Collection', 'Garbage collection charges', 'building', true);
-
--- Create function to update timestamps
-CREATE OR REPLACE FUNCTION update_updated_at_column()
-RETURNS TRIGGER AS $$
+-- Create RLS policies for user_profiles
+DO $$
 BEGIN
-    NEW.updated_at = NOW();
-    RETURN NEW;
+    -- Create policies only if they don't exist
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Users can view their own profile' AND tablename = 'user_profiles') THEN
+        CREATE POLICY "Users can view their own profile" ON user_profiles
+          FOR SELECT USING (auth.uid() = id);
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Users can update their own profile' AND tablename = 'user_profiles') THEN
+        CREATE POLICY "Users can update their own profile" ON user_profiles
+          FOR UPDATE USING (auth.uid() = id);
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Super admins can view all profiles' AND tablename = 'user_profiles') THEN
+        CREATE POLICY "Super admins can view all profiles" ON user_profiles
+          FOR SELECT USING (
+            EXISTS (
+              SELECT 1 FROM user_profiles 
+              WHERE id = auth.uid() AND role = 'super_admin'
+            )
+          );
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Super admins can update all profiles' AND tablename = 'user_profiles') THEN
+        CREATE POLICY "Super admins can update all profiles" ON user_profiles
+          FOR UPDATE USING (
+            EXISTS (
+              SELECT 1 FROM user_profiles 
+              WHERE id = auth.uid() AND role = 'super_admin'
+            )
+          );
+    END IF;
+END $$;
+
+-- Create RLS policies for colonies
+DO $$
+BEGIN
+    -- Create policies only if they don't exist
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Users can view colonies they belong to' AND tablename = 'colonies') THEN
+        CREATE POLICY "Users can view colonies they belong to" ON colonies
+          FOR SELECT USING (
+            EXISTS (
+              SELECT 1 FROM user_profiles 
+              WHERE id = auth.uid() AND colony_id = colonies.id
+            )
+          );
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Super admins can view all colonies' AND tablename = 'colonies') THEN
+        CREATE POLICY "Super admins can view all colonies" ON colonies
+          FOR SELECT USING (
+            EXISTS (
+              SELECT 1 FROM user_profiles 
+              WHERE id = auth.uid() AND role = 'super_admin'
+            )
+          );
+    END IF;
+END $$;
+
+-- Create RLS policies for buildings
+DO $$
+BEGIN
+    -- Create policies only if they don't exist
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Users can view buildings in their colony' AND tablename = 'buildings') THEN
+        CREATE POLICY "Users can view buildings in their colony" ON buildings
+          FOR SELECT USING (
+            EXISTS (
+              SELECT 1 FROM user_profiles 
+              WHERE id = auth.uid() AND colony_id = buildings.colony_id
+            )
+          );
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Super admins can view all buildings' AND tablename = 'buildings') THEN
+        CREATE POLICY "Super admins can view all buildings" ON buildings
+          FOR SELECT USING (
+            EXISTS (
+              SELECT 1 FROM user_profiles 
+              WHERE id = auth.uid() AND role = 'super_admin'
+            )
+          );
+    END IF;
+END $$;
+
+-- Create RLS policies for flats
+DO $$
+BEGIN
+    -- Create policies only if they don't exist
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Users can view flats in their building' AND tablename = 'flats') THEN
+        CREATE POLICY "Users can view flats in their building" ON flats
+          FOR SELECT USING (
+            EXISTS (
+              SELECT 1 FROM user_profiles 
+              WHERE id = auth.uid() AND building_id = (
+                SELECT building_id FROM floors WHERE id = flats.floor_id
+              )
+            )
+          );
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Super admins can view all flats' AND tablename = 'flats') THEN
+        CREATE POLICY "Super admins can view all flats" ON flats
+          FOR SELECT USING (
+            EXISTS (
+              SELECT 1 FROM user_profiles 
+              WHERE id = auth.uid() AND role = 'super_admin'
+            )
+          );
+    END IF;
+END $$;
+
+-- Insert default data
+INSERT INTO bill_categories (name, description, applies_to, is_recurring) VALUES
+('Maintenance Fee', 'Monthly maintenance charges', 'flat', true),
+('Water Bill', 'Water consumption charges', 'flat', true),
+('Electricity Bill', 'Electricity consumption charges', 'flat', true),
+('Parking Fee', 'Vehicle parking charges', 'flat', true),
+('Security Fee', 'Security service charges', 'colony', true),
+('Garbage Collection', 'Waste management charges', 'colony', true),
+('Common Area Maintenance', 'Common area upkeep charges', 'building', true),
+('Lift Maintenance', 'Elevator maintenance charges', 'building', true);
+
+-- Insert a default colony
+INSERT INTO colonies (id, name, address, city, state, pincode, total_buildings, total_flats) VALUES
+('550e8400-e29b-41d4-a716-446655440001', 'Sunrise Colony', '123 Main Street', 'Mumbai', 'Maharashtra', '400001', 2, 16);
+
+-- Insert default blocks
+INSERT INTO blocks (id, block_name, description) VALUES
+('550e8400-e29b-41d4-a716-446655440030', 'Block A', 'Main residential block'),
+('550e8400-e29b-41d4-a716-446655440031', 'Block B', 'Secondary residential block'),
+('550e8400-e29b-41d4-a716-446655440032', 'Block C', 'Commercial block');
+
+-- Function to disable RLS for testing
+CREATE OR REPLACE FUNCTION disable_rls(table_name text)
+RETURNS void AS $$
+BEGIN
+  EXECUTE format('ALTER TABLE %I DISABLE ROW LEVEL SECURITY', table_name);
 END;
-$$ language 'plpgsql';
+$$ LANGUAGE plpgsql;
 
--- Create triggers for updated_at
-CREATE TRIGGER update_user_profiles_updated_at BEFORE UPDATE ON user_profiles FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-CREATE TRIGGER update_colonies_updated_at BEFORE UPDATE ON colonies FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-CREATE TRIGGER update_buildings_updated_at BEFORE UPDATE ON buildings FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-CREATE TRIGGER update_flats_updated_at BEFORE UPDATE ON flats FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-CREATE TRIGGER update_bills_updated_at BEFORE UPDATE ON bills FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-CREATE TRIGGER update_maintenance_requests_updated_at BEFORE UPDATE ON maintenance_requests FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-
--- Insert demo data for testing
--- Note: These users need to be created in Supabase Auth first, then their profiles will be linked
-
--- Demo Colony
-INSERT INTO colonies (id, name, address, city, state, pincode, total_buildings, total_flats, subscription_plan, subscription_status) VALUES
-('550e8400-e29b-41d4-a716-446655440001', 'Green Valley Society', '123 Green Valley Road', 'Mumbai', 'Maharashtra', '400001', 3, 24, 'professional', 'active');
-
--- Demo Buildings
-INSERT INTO buildings (id, colony_id, name, building_type, total_floors, total_flats, has_lift, has_parking, construction_year) VALUES
-('550e8400-e29b-41d4-a716-446655440002', '550e8400-e29b-41d4-a716-446655440001', 'Building A', 'residential', 4, 8, true, true, 2020),
-('550e8400-e29b-41d4-a716-446655440003', '550e8400-e29b-41d4-a716-446655440001', 'Building B', 'residential', 4, 8, true, true, 2020),
-('550e8400-e29b-41d4-a716-446655440004', '550e8400-e29b-41d4-a716-446655440001', 'Building C', 'residential', 4, 8, true, true, 2020);
-
--- Demo Floors
-INSERT INTO floors (id, building_id, floor_number, floor_name, total_flats, base_maintenance_charge) VALUES
-('550e8400-e29b-41d4-a716-446655440005', '550e8400-e29b-41d4-a716-446655440002', 1, 'Ground Floor', 2, 500),
-('550e8400-e29b-41d4-a716-446655440006', '550e8400-e29b-41d4-a716-446655440002', 2, 'First Floor', 2, 500),
-('550e8400-e29b-41d4-a716-446655440007', '550e8400-e29b-41d4-a716-446655440002', 3, 'Second Floor', 2, 500),
-('550e8400-e29b-41d4-a716-446655440008', '550e8400-e29b-41d4-a716-446655440002', 4, 'Third Floor', 2, 500);
-
--- Demo Flats
-INSERT INTO flats (id, floor_id, flat_number, flat_type, area_sqft, status, monthly_rent, security_deposit) VALUES
-('550e8400-e29b-41d4-a716-446655440009', '550e8400-e29b-41d4-a716-446655440005', 'A-101', '2bhk', 1200, 'occupied', 15000, 30000),
-('550e8400-e29b-41d4-a716-446655440010', '550e8400-e29b-41d4-a716-446655440005', 'A-102', '2bhk', 1200, 'occupied', 15000, 30000),
-('550e8400-e29b-41d4-a716-446655440011', '550e8400-e29b-41d4-a716-446655440006', 'A-201', '3bhk', 1500, 'occupied', 20000, 40000),
-('550e8400-e29b-41d4-a716-446655440012', '550e8400-e29b-41d4-a716-446655440006', 'A-202', '3bhk', 1500, 'vacant', 20000, 40000);
-
--- Update colony with actual counts
-UPDATE colonies SET 
-  total_buildings = (SELECT COUNT(*) FROM buildings WHERE colony_id = '550e8400-e29b-41d4-a716-446655440001'),
-  total_flats = (SELECT COUNT(*) FROM flats WHERE floor_id IN (SELECT id FROM floors WHERE building_id IN (SELECT id FROM buildings WHERE colony_id = '550e8400-e29b-41d4-a716-446655440001')))
-WHERE id = '550e8400-e29b-41d4-a716-446655440001';
-
--- Update buildings with actual counts
-UPDATE buildings SET 
-  total_flats = (SELECT COUNT(*) FROM flats WHERE floor_id IN (SELECT id FROM floors WHERE building_id = buildings.id))
-WHERE colony_id = '550e8400-e29b-41d4-a716-446655440001'; 
+-- Function to enable RLS
+CREATE OR REPLACE FUNCTION enable_rls(table_name text)
+RETURNS void AS $$
+BEGIN
+  EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY', table_name);
+END;
+$$ LANGUAGE plpgsql;

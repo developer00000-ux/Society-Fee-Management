@@ -125,13 +125,75 @@ export async function POST() {
       console.error('Error creating members:', membersError)
     }
 
+    // Create demo user profiles for authentication
+    const { data: userProfiles, error: userProfilesError } = await serverClient
+      .from('user_profiles')
+      .insert([
+        {
+          id: '550e8400-e29b-41d4-a716-446655440011',
+          role: 'super_admin',
+          first_name: 'Super',
+          last_name: 'Admin',
+          phone: '+91-9876543200',
+          colony_id: '550e8400-e29b-41d4-a716-446655440001',
+          is_active: true
+        },
+        {
+          id: '550e8400-e29b-41d4-a716-446655440012',
+          role: 'colony_admin',
+          first_name: 'Colony',
+          last_name: 'Admin',
+          phone: '+91-9876543201',
+          colony_id: '550e8400-e29b-41d4-a716-446655440001',
+          is_active: true
+        },
+        {
+          id: '550e8400-e29b-41d4-a716-446655440013',
+          role: 'block_manager',
+          first_name: 'Block',
+          last_name: 'Manager',
+          phone: '+91-9876543202',
+          colony_id: '550e8400-e29b-41d4-a716-446655440001',
+          building_id: '550e8400-e29b-41d4-a716-446655440002',
+          is_active: true
+        },
+        {
+          id: '550e8400-e29b-41d4-a716-446655440014',
+          role: 'resident',
+          first_name: 'John',
+          last_name: 'Resident',
+          phone: '+91-9876543203',
+          colony_id: '550e8400-e29b-41d4-a716-446655440001',
+          building_id: '550e8400-e29b-41d4-a716-446655440002',
+          flat_id: '550e8400-e29b-41d4-a716-446655440009',
+          is_active: true
+        },
+        {
+          id: '550e8400-e29b-41d4-a716-446655440015',
+          role: 'resident',
+          first_name: 'Jane',
+          last_name: 'Resident',
+          phone: '+91-9876543204',
+          colony_id: '550e8400-e29b-41d4-a716-446655440001',
+          building_id: '550e8400-e29b-41d4-a716-446655440002',
+          flat_id: '550e8400-e29b-41d4-a716-446655440010',
+          is_active: true
+        }
+      ])
+      .select()
+
+    if (userProfilesError) {
+      console.error('Error creating user profiles:', userProfilesError)
+    }
+
     return NextResponse.json({
       success: true,
       message: 'Demo data created successfully',
       buildings: buildings?.length || 0,
       floors: floors?.length || 0,
       flats: flats?.length || 0,
-      members: members?.length || 0
+      members: members?.length || 0,
+      userProfiles: userProfiles?.length || 0
     })
 
   } catch (error) {
