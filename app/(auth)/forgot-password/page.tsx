@@ -3,6 +3,9 @@
 import React, { useState } from 'react'
 import { useRouter } from 'next/navigation'
 
+// Force dynamic rendering to prevent build-time issues
+export const dynamic = 'force-dynamic'
+
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState('')
   const [loading, setLoading] = useState(false)
