@@ -1,16 +1,48 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
-import { getPendingPayments, getConfirmedPayments } from '@/lib/database'
 import { useAuth } from '@/lib/contexts/AuthContext'
+import { getPendingPayments, getConfirmedPayments } from '@/lib/database'
 import FeeTable from '@/app/components/FeeTable'
-import { FeeEntry } from '@/types/database'
+import PaymentConfirmationModal from '@/app/components/PaymentConfirmationModal'
+
+// Interface for the component's FeeEntry type (different from database FeeEntry)
+interface ComponentFeeEntry {
+  id: string
+  block: string
+  memberName: string
+  flatNumber: string
+  months: string[]
+  fee: string
+  totalFee: string
+  paymentType: string
+  remarks: string
+  date: string
+  payment_confirmed?: boolean
+  payment_confirmed_by?: string
+  payment_confirmed_at?: string
+  created_by?: string
+  user_profiles?: {
+    id: string
+    first_name: string
+    last_name: string
+    email: string
+    role: string
+  }
+  confirmed_by_user?: {
+    id: string
+    first_name: string
+    last_name: string
+    email: string
+    role: string
+  }
+}
 
 export default function PaymentConfirmationsPage() {
   const { user } = useAuth()
-  const [pendingPayments, setPendingPayments] = useState<FeeEntry[]>([])
-  const [confirmedPayments, setConfirmedPayments] = useState<FeeEntry[]>([])
   const [loading, setLoading] = useState(true)
+  const [pendingPayments, setPendingPayments] = useState<ComponentFeeEntry[]>([])
+  const [confirmedPayments, setConfirmedPayments] = useState<ComponentFeeEntry[]>([])
   const [activeTab, setActiveTab] = useState<'pending' | 'confirmed'>('pending')
 
   useEffect(() => {
@@ -26,7 +58,7 @@ export default function PaymentConfirmationsPage() {
       ])
       
       // Transform the data to match FeeTable interface
-      const transformEntry = (entry: any): FeeEntry => ({
+      const transformEntry = (entry: any): ComponentFeeEntry => ({
         id: entry.id,
         block: entry.block,
         memberName: entry.member_name,

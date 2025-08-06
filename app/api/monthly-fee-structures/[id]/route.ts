@@ -3,10 +3,10 @@ import { createServerClient } from '@/lib/supabase'
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = params
+    const { id } = await params
     const serverClient = createServerClient()
     const { data: structure, error } = await serverClient
       .from('monthly_fee_structures')
@@ -32,10 +32,10 @@ export async function GET(
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = params
+    const { id } = await params
     const body = await request.json()
     const { month, year, fee_types, is_active } = body
 
@@ -67,10 +67,10 @@ export async function PUT(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = params
+    const { id } = await params
     const serverClient = createServerClient()
     const { error } = await serverClient
       .from('monthly_fee_structures')

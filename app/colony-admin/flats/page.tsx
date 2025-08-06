@@ -118,7 +118,7 @@ export default function ColonyAdminFlatsPage() {
     setFormData({
       flat_number: flat.flat_number,
       block_id: flat.block_id || '',
-      floor_number: flat.floor_number?.toString() || '1',
+      floor_number: flat.floors?.floor_number?.toString() || '1',
       flat_type: flat.flat_type || '',
       status: flat.status || 'vacant',
       monthly_rent: flat.monthly_rent?.toString() || '',
@@ -347,7 +347,7 @@ export default function ColonyAdminFlatsPage() {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span className="text-sm text-gray-500">
-                          {flat.floor_number}
+                          {flat.floors?.floor_number || '-'}
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">

@@ -39,7 +39,10 @@ export default function MembersPage() {
       const memberData = {
         name: formData.name,
         phone: formData.phone || null,
-        email: formData.email || null
+        email: formData.email || null,
+        block_id: null,
+        flat_id: null,
+        user_id: null
       }
 
       if (editingMember) {

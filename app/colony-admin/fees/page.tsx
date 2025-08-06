@@ -134,18 +134,17 @@ export default function ColonyAdminFeesPage() {
     setSubmitting(true)
 
     try {
+      const totalFee = selectedFeeTypes.reduce((sum, st) => sum + (st.feeType.amount * st.quantity), 0)
+      
       const feeEntryData = {
-        member_id: formData.memberName,
-        flat_id: formData.flatNumber,
-        block_id: formData.block,
+        block: getBlockName(formData.block),
+        member_name: getMemberName(formData.memberName),
+        flat_number: getFlatNumber(formData.flatNumber),
         months: formData.selectedMonths,
+        fee: selectedFeeTypes.reduce((sum, st) => sum + st.feeType.amount, 0),
+        total_fee: totalFee,
         payment_type: formData.paymentType,
-        remarks: formData.remarks,
-        fee_types: selectedFeeTypes.map(st => ({
-          fee_type_id: st.feeType.id,
-          quantity: st.quantity,
-          amount: st.feeType.amount
-        }))
+        remarks: formData.remarks
       }
 
       await createFeeEntry(feeEntryData)
@@ -424,17 +423,17 @@ export default function ColonyAdminFeesPage() {
                     <tr key={entry.id} className="hover:bg-gray-50">
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span className="text-sm font-medium text-gray-900">
-                          {getMemberName(entry.member_id)}
+                          {entry.member_name}
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span className="text-sm text-gray-500">
-                          Block {getBlockName(entry.block_id)}
+                          {entry.block}
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span className="text-sm text-gray-500">
-                          Flat {getFlatNumber(entry.flat_id)}
+                          {entry.flat_number}
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
@@ -449,7 +448,7 @@ export default function ColonyAdminFeesPage() {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span className="text-sm font-medium text-gray-900">
-                          ₹{entry.total_amount}
+                          ₹{entry.total_fee}
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
