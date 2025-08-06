@@ -193,24 +193,7 @@ export default function LoginPage() {
                 Forgot your password?
               </a>
             </div>
-            <div className="text-sm space-y-2">
-              <button
-                type="button"
-                onClick={setupDemoUsers}
-                disabled={setupLoading}
-                className="block font-medium text-green-600 hover:text-green-500 disabled:text-gray-400"
-              >
-                {setupLoading ? 'Setting up...' : 'Setup Demo Data'}
-              </button>
-              <button
-                type="button"
-                onClick={createDemoAuthUsers}
-                disabled={createAuthLoading}
-                className="block font-medium text-blue-600 hover:text-blue-500 disabled:text-gray-400"
-              >
-                {createAuthLoading ? 'Creating...' : 'Create Demo Auth Users'}
-              </button>
-            </div>
+           
           </div>
 
           <div>
@@ -250,48 +233,7 @@ export default function LoginPage() {
             )}
 
             <div className="mt-6">
-              <div className="relative">
-                <div className="absolute inset-0 flex items-center">
-                  <div className="w-full border-t border-gray-300" />
-                </div>
-                <div className="relative flex justify-center text-sm">
-                  <span className="px-2 bg-gradient-to-br from-blue-50 to-indigo-100 text-gray-500">
-                    Demo Accounts
-                  </span>
-                </div>
-              </div>
-
-              <div className="mt-6 grid grid-cols-1 gap-3">
-                <div className="bg-white p-4 rounded-lg border border-gray-200">
-                  <h3 className="text-sm font-medium text-gray-900 mb-2">Super Admin</h3>
-                  <p className="text-xs text-gray-500 mb-2">superadmin@demo.com / superadmin123</p>
-                  <p className="text-xs text-gray-400">Full system access</p>
-                </div>
-                
-                <div className="bg-white p-4 rounded-lg border border-gray-200">
-                  <h3 className="text-sm font-medium text-gray-900 mb-2">Colony Admin</h3>
-                  <p className="text-xs text-gray-500 mb-2">colonyadmin@demo.com / colonyadmin123</p>
-                  <p className="text-xs text-gray-400">Colony management</p>
-                </div>
-                
-                <div className="bg-white p-4 rounded-lg border border-gray-200">
-                  <h3 className="text-sm font-medium text-gray-900 mb-2">Block Manager</h3>
-                  <p className="text-xs text-gray-500 mb-2">blockmanager@demo.com / blockmanager123</p>
-                  <p className="text-xs text-gray-400">Building management</p>
-                </div>
-                
-                <div className="bg-white p-4 rounded-lg border border-gray-200">
-                  <h3 className="text-sm font-medium text-gray-900 mb-2">Resident 1</h3>
-                  <p className="text-xs text-gray-500 mb-2">resident1@demo.com / resident123</p>
-                  <p className="text-xs text-gray-400">Personal dashboard</p>
-                </div>
-                
-                <div className="bg-white p-4 rounded-lg border border-gray-200">
-                  <h3 className="text-sm font-medium text-gray-900 mb-2">Resident 2</h3>
-                  <p className="text-xs text-gray-500 mb-2">resident2@demo.com / resident123</p>
-                  <p className="text-xs text-gray-400">Personal dashboard</p>
-                </div>
-              </div>
+             
             </div>
           </div>
         </form>

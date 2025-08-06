@@ -110,7 +110,7 @@ export default function SharedFeeEntries({
     : 'Complete list of all fee entries in the system'
 
   return (
-    <div className="max-w-4xl mx-auto p-6">
+    <div className="w-full">
       {/* Header Section */}
       <div className="mb-6">
         <div className="flex justify-between items-center">
@@ -123,15 +123,7 @@ export default function SharedFeeEntries({
             </p>
           </div>
           <div className="flex items-center space-x-3">
-            {/* Create Button for Block Managers */}
-            {/* {showCreateButton && onCreateClick && (
-              <button
-                onClick={onCreateClick}
-                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors"
-              >
-                Create Fee Entry
-              </button>
-            )} */}
+            
             
             {/* See All Entries Link for Residents */}
             {mode === 'resident' && user && user.role === 'resident' && (

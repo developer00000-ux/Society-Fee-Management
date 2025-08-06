@@ -50,6 +50,10 @@ export default function FeeTable({ entries, showDeleteButton = false, onDelete, 
   const [showConfirmationModal, setShowConfirmationModal] = useState(false)
   const [selectedEntry, setSelectedEntry] = useState<FeeEntry | null>(null)
 
+  // Check if user is admin (can see actions)
+  const isAdmin = user?.role === 'super_admin' || user?.role === 'colony_admin' || user?.role === 'block_manager'
+  const canConfirmPayments = user?.role === 'super_admin' || user?.role === 'colony_admin' || user?.role === 'block_manager'
+
   // Get unique blocks and flats for filter options
   const uniqueBlocks = useMemo(() => {
     const blocks = [...new Set(entries.map(entry => entry.block))]
@@ -100,8 +104,6 @@ export default function FeeTable({ entries, showDeleteButton = false, onDelete, 
     setSelectedEntry(null)
     onPaymentConfirmed?.()
   }
-
-  const canConfirmPayments = user?.role === 'super_admin' || user?.role === 'colony_admin' || user?.role === 'block_manager'
 
   if (entries.length === 0) {
     return (
@@ -251,9 +253,11 @@ export default function FeeTable({ entries, showDeleteButton = false, onDelete, 
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Remarks
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Actions
-                </th>
+                {isAdmin && (
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Actions
+                  </th>
+                )}
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
@@ -304,26 +308,28 @@ export default function FeeTable({ entries, showDeleteButton = false, onDelete, 
                   <td className="px-6 py-4 text-sm text-gray-900 max-w-xs truncate">
                     {entry.remarks || '-'}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    <div className="flex space-x-2">
-                      {canConfirmPayments && (
-                        <button
-                          onClick={() => handleConfirmPayment(entry)}
-                          className="text-blue-600 hover:text-blue-800 text-sm font-medium"
-                        >
-                          {entry.payment_confirmed ? 'Unconfirm' : 'Confirm'}
-                        </button>
-                      )}
-                      {showDeleteButton && onDelete && (
-                        <button
-                          onClick={() => onDelete(entry.id)}
-                          className="text-red-600 hover:text-red-800 text-sm font-medium"
-                        >
-                          Delete
-                        </button>
-                      )}
-                    </div>
-                  </td>
+                  {isAdmin && (
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      <div className="flex space-x-2">
+                        {canConfirmPayments && (
+                          <button
+                            onClick={() => handleConfirmPayment(entry)}
+                            className="text-blue-600 hover:text-blue-800 text-sm font-medium"
+                          >
+                            {entry.payment_confirmed ? 'Unconfirm' : 'Confirm'}
+                          </button>
+                        )}
+                        {showDeleteButton && onDelete && (
+                          <button
+                            onClick={() => onDelete(entry.id)}
+                            className="text-red-600 hover:text-red-800 text-sm font-medium"
+                          >
+                            Delete
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>
