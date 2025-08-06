@@ -285,6 +285,25 @@ export default function PaymentRequestModal({ isOpen, onClose, feeEntry }: Payme
                 </button>
               )}
 
+              {/* Submit Button */}
+              <button
+                onClick={() => {
+                  // Handle form submission here
+                  console.log('Payment request submitted:', paymentDetails)
+                  alert('Payment request submitted successfully!')
+                  onClose()
+                }}
+                disabled={!paymentDetails.upiId || loading}
+                className="w-full bg-gradient-to-r from-green-600 to-emerald-600 text-white py-3 px-6 rounded-lg hover:from-green-700 hover:to-emerald-700 transition-all duration-200 font-semibold disabled:from-gray-400 disabled:to-gray-500 disabled:cursor-not-allowed shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
+              >
+                <span className="flex items-center justify-center">
+                  <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  Submit Payment Request
+                </span>
+              </button>
+
               {/* QR Code Display */}
               {qrCodeDataUrl && (
                 <div className="text-center space-y-4">

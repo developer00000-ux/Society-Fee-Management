@@ -35,6 +35,7 @@ export default function MonthlyFeeStructurePage() {
   const [formLoading, setFormLoading] = useState(false)
   const [showForm, setShowForm] = useState(false)
   const [editingStructure, setEditingStructure] = useState<MonthlyFeeStructure | null>(null)
+  const [showFeeTypesGrid, setShowFeeTypesGrid] = useState(false)
   const [formData, setFormData] = useState<MonthlyFeeStructure>({
     month: '',
     year: new Date().getFullYear(),
@@ -119,10 +120,7 @@ export default function MonthlyFeeStructurePage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     
-    if (formData.fee_types.length === 0) {
-      alert('Please select at least one fee type.')
-      return
-    }
+    // Fee types are now optional, so no validation needed
 
     try {
       setFormLoading(true)
@@ -151,15 +149,16 @@ export default function MonthlyFeeStructurePage() {
         setMonthlyStructures(prev => [newStructure, ...prev])
       }
 
-      // Reset form
-      setFormData({
-        month: '',
-        year: new Date().getFullYear(),
-        fee_types: [],
-        is_active: true
-      })
-      setEditingStructure(null)
-      setShowForm(false)
+             // Reset form
+       setFormData({
+         month: '',
+         year: new Date().getFullYear(),
+         fee_types: [],
+         is_active: true
+       })
+       setEditingStructure(null)
+       setShowForm(false)
+       setShowFeeTypesGrid(false)
       
       alert(editingStructure ? 'Monthly fee structure updated successfully!' : 'Monthly fee structure created successfully!')
     } catch (error) {
@@ -179,6 +178,7 @@ export default function MonthlyFeeStructurePage() {
       is_active: structure.is_active
     })
     setShowForm(true)
+    setShowFeeTypesGrid(structure.fee_types.length > 0)
   }
 
   const handleDelete = async (id: string) => {
@@ -409,43 +409,72 @@ export default function MonthlyFeeStructurePage() {
                     </div>
                   </div>
 
-                  {/* Fee Types Selection */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-3">Select Fee Types</label>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                      {feeTypes.map(feeType => (
-                        <div
-                          key={feeType.id}
-                          className={`p-4 border rounded-lg cursor-pointer transition-colors ${
-                            formData.fee_types.find(ft => ft.fee_type_id === feeType.id)
-                              ? 'border-blue-500 bg-blue-50'
-                              : 'border-gray-300 hover:border-gray-400'
-                          }`}
-                          onClick={() => handleFeeTypeToggle(feeType)}
-                        >
-                          <div className="flex justify-between items-start">
-                            <div>
-                              <h3 className="font-medium text-gray-900">{feeType.name}</h3>
-                              <p className="text-sm text-gray-600 mt-1">{feeType.description}</p>
-                              <p className="text-lg font-bold text-blue-600 mt-2">₹{feeType.amount.toFixed(2)}</p>
-                            </div>
-                                                         <div className="flex items-center">
-                               <input
-                                 type="checkbox"
-                                 checked={formData.fee_types.find(ft => ft.fee_type_id === feeType.id) !== undefined}
-                                 onChange={(e) => {
-                                   e.stopPropagation()
-                                   handleFeeTypeToggle(feeType)
-                                 }}
-                                 onClick={(e) => e.stopPropagation()}
-                                 className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                               />
-                             </div>
-                          </div>
-                        </div>
-                      ))}
+                  {/* Fee Types Selection Toggle */}
+                  <div className="flex items-center justify-between mb-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700">Select Fee Types</label>
+                      <p className="text-xs text-gray-500 mt-1">Optional: Add specific fee types to this structure</p>
                     </div>
+                                         <button
+                       type="button"
+                       onClick={() => {
+                         if (formData.fee_types.length > 0) {
+                           // Clear selected fee types
+                           setFormData(prev => ({ ...prev, fee_types: [] }))
+                           setShowFeeTypesGrid(false)
+                         } else {
+                           // Show fee types selection
+                           setShowFeeTypesGrid(true)
+                         }
+                       }}
+                       className={`px-3 py-1 text-sm rounded-md transition-colors ${
+                         formData.fee_types.length > 0
+                           ? 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+                           : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                       }`}
+                     >
+                       {formData.fee_types.length > 0 ? `Clear (${formData.fee_types.length} selected)` : 'Add Fee Types'}
+                     </button>
                   </div>
+
+                                     {/* Fee Types Selection */}
+                   {showFeeTypesGrid && (
+                     <div>
+                       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                         {feeTypes.map(feeType => (
+                           <div
+                             key={feeType.id}
+                             className={`p-4 border rounded-lg cursor-pointer transition-colors ${
+                               formData.fee_types.find(ft => ft.fee_type_id === feeType.id)
+                                 ? 'border-blue-500 bg-blue-50'
+                                 : 'border-gray-300 hover:border-gray-400'
+                             }`}
+                             onClick={() => handleFeeTypeToggle(feeType)}
+                           >
+                             <div className="flex justify-between items-start">
+                               <div>
+                                 <h3 className="font-medium text-gray-900">{feeType.name}</h3>
+                                 <p className="text-sm text-gray-600 mt-1">{feeType.description}</p>
+                                 <p className="text-lg font-bold text-blue-600 mt-2">₹{feeType.amount.toFixed(2)}</p>
+                               </div>
+                               <div className="flex items-center">
+                                 <input
+                                   type="checkbox"
+                                   checked={formData.fee_types.find(ft => ft.fee_type_id === feeType.id) !== undefined}
+                                   onChange={(e) => {
+                                     e.stopPropagation()
+                                     handleFeeTypeToggle(feeType)
+                                   }}
+                                   onClick={(e) => e.stopPropagation()}
+                                   className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                                 />
+                               </div>
+                             </div>
+                           </div>
+                         ))}
+                       </div>
+                     </div>
+                   )}
 
                   {/* Selected Fee Types Configuration */}
                   {formData.fee_types.length > 0 && (
@@ -496,16 +525,17 @@ export default function MonthlyFeeStructurePage() {
                   <div className="flex justify-end space-x-3">
                     <button
                       type="button"
-                      onClick={() => {
-                        setShowForm(false)
-                        setEditingStructure(null)
-                        setFormData({
-                          month: '',
-                          year: new Date().getFullYear(),
-                          fee_types: [],
-                          is_active: true
-                        })
-                      }}
+                                             onClick={() => {
+                         setShowForm(false)
+                         setEditingStructure(null)
+                         setFormData({
+                           month: '',
+                           year: new Date().getFullYear(),
+                           fee_types: [],
+                           is_active: true
+                         })
+                         setShowFeeTypesGrid(false)
+                       }}
                       className="bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-2 px-4 rounded"
                     >
                       Cancel

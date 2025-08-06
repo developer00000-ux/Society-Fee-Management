@@ -30,7 +30,23 @@ export async function getFeeEntries() {
 
   const { data: entries, error } = await supabase
     .from('fee_entries')
-    .select('*')
+    .select(`
+      *,
+      created_by_user:user_profiles!fee_entries_created_by_fkey (
+        id,
+        first_name,
+        last_name,
+        email,
+        role
+      ),
+      confirmed_by_user:user_profiles!fee_entries_payment_confirmed_by_fkey (
+        id,
+        first_name,
+        last_name,
+        email,
+        role
+      )
+    `)
     .order('created_at', { ascending: false })
 
   if (error) {
@@ -903,14 +919,14 @@ export async function getPendingPayments() {
     .from('fee_entries')
     .select(`
       *,
-      user_profiles!fee_entries_created_by_fkey (
+      created_by_user:user_profiles!fee_entries_created_by_fkey (
         id,
         first_name,
         last_name,
         email,
         role
       ),
-      user_profiles!fee_entries_payment_confirmed_by_fkey (
+      confirmed_by_user:user_profiles!fee_entries_payment_confirmed_by_fkey (
         id,
         first_name,
         last_name,
@@ -934,14 +950,14 @@ export async function getConfirmedPayments() {
     .from('fee_entries')
     .select(`
       *,
-      user_profiles!fee_entries_created_by_fkey (
+      created_by_user:user_profiles!fee_entries_created_by_fkey (
         id,
         first_name,
         last_name,
         email,
         role
       ),
-      user_profiles!fee_entries_payment_confirmed_by_fkey (
+      confirmed_by_user:user_profiles!fee_entries_payment_confirmed_by_fkey (
         id,
         first_name,
         last_name,
@@ -957,4 +973,56 @@ export async function getConfirmedPayments() {
   }
 
   return entries
+} 
+
+export async function updatePaymentStatus(feeEntryId: string, status: 'pending' | 'success' | 'failed' | 'refunded', updatedBy: string) {
+  const { data: entry, error } = await supabase
+    .from('fee_entries')
+    .update({
+      status: status,
+      payment_confirmed: status === 'success',
+      payment_confirmed_by: status === 'success' ? updatedBy : null,
+      payment_confirmed_at: status === 'success' ? new Date().toISOString() : null
+    })
+    .eq('id', feeEntryId)
+    .select()
+    .single()
+
+  if (error) {
+    throw new Error(`Error updating payment status: ${error.message}`)
+  }
+
+  return entry
+} 
+
+export async function updateFeeEntry(id: string, data: {
+  block: string
+  member_name: string
+  flat_number: string
+  months: string[]
+  fee: number
+  total_fee: number
+  payment_type: string
+  remarks?: string
+}) {
+  // Check if Supabase is properly configured
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+    throw new Error('Supabase is not configured. Please set up your environment variables.')
+  }
+
+  const { data: entry, error } = await supabase
+    .from('fee_entries')
+    .update({
+      ...data,
+      updated_at: new Date().toISOString()
+    })
+    .eq('id', id)
+    .select()
+    .single()
+
+  if (error) {
+    throw new Error(`Error updating fee entry: ${error.message}`)
+  }
+
+  return entry
 } 

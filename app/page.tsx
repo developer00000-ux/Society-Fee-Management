@@ -6,6 +6,7 @@ import { useAuth } from '@/lib/contexts/AuthContext'
 import { getRoleBasedRedirect } from '@/lib/auth'
 import SharedFeeEntries from './components/SharedFeeEntries'
 import Navbar from './components/Navbar'
+import PaymentRequestModal from './components/PaymentRequestModal'
 
 export default function HomePage() {
   const { user, loading } = useAuth()
@@ -57,15 +58,20 @@ export default function HomePage() {
         </div>
 
         {/* Shared Fee Entries for Public View */}
-        <div className="">
+        <div>
+
+        <div className="mb-8">
           <SharedFeeEntries 
             mode="resident"
             title="Recent Fee Entries"
             subtitle="Public view of recent fee entries in the system"
             showCreateButton={false}
             showDeleteButton={false}
-          />
+            showPaymentButton={true}
+            onPaymentClick={() => router.push('/payment')}
+            />
         </div>
+            </div>
       </div>
     </div>
   )

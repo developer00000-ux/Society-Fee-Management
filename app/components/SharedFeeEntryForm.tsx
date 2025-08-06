@@ -72,14 +72,40 @@ export default function SharedFeeEntryForm({ mode, onEntryCreated, onClose }: Sh
   const [useMonthlyStructures, setUseMonthlyStructures] = useState(true)
   const [showPaymentModal, setShowPaymentModal] = useState(false)
   const [currentFeeEntry, setCurrentFeeEntry] = useState<LocalFeeEntry | null>(null)
+  const [showMonthDropdown, setShowMonthDropdown] = useState(false)
+  const [showFeeTypeDropdown, setShowFeeTypeDropdown] = useState(false)
+
+  // Close dropdowns when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Element
+      
+      // Close month dropdown if clicking outside
+      if (showMonthDropdown && !target.closest('[data-month-dropdown]')) {
+        setShowMonthDropdown(false)
+      }
+      
+      // Close fee type dropdown if clicking outside
+      if (showFeeTypeDropdown && !target.closest('[data-fee-type-dropdown]')) {
+        setShowFeeTypeDropdown(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [showMonthDropdown, showFeeTypeDropdown])
 
   const months = [
     'January', 'February', 'March', 'April', 'May', 'June',
     'July', 'August', 'September', 'October', 'November', 'December'
   ]
-  const paymentTypes = user?.role === 'resident' 
+  const paymentTypes = !user 
     ? ['UPI', 'IMPS', 'Card', 'Cash', 'Bank Transfer']
-    : ['UPI', 'IMPS', 'Card', 'Cash', 'Bank Transfer', 'Request Payment']
+    : user.role === 'resident' 
+      ? ['UPI', 'IMPS', 'Card', 'Cash', 'Bank Transfer']
+      : ['UPI', 'IMPS', 'Card', 'Cash', 'Bank Transfer', 'Request Payment']
 
   useEffect(() => {
     loadData()
@@ -195,10 +221,21 @@ export default function SharedFeeEntryForm({ mode, onEntryCreated, onClose }: Sh
   }
 
   const calculateTotalFee = () => {
-    return formData.selectedMonths.reduce((total, month) => {
+    let totalFee = 0
+    
+    // Calculate fees from monthly fee structures (built-in fees)
+    const monthlyStructureFees = formData.selectedMonths.reduce((total, month) => {
       const structure = monthlyStructures.find(s => s.month === month)
       return total + (structure ? structure.fee_types.reduce((sum, ft) => sum + ft.amount, 0) : 0)
     }, 0)
+    
+    // Calculate fees from selected fee types (multiplied by number of selected months)
+    const selectedFeeTypeFees = selectedFeeTypes.reduce((total, selected) => {
+      return total + (selected.feeType.amount * selected.quantity * formData.selectedMonths.length)
+    }, 0)
+    
+    totalFee = monthlyStructureFees + selectedFeeTypeFees
+    return totalFee
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -214,11 +251,18 @@ export default function SharedFeeEntryForm({ mode, onEntryCreated, onClose }: Sh
     try {
       const totalFee = calculateTotalFee()
       
-      const feeTypeNames = formData.selectedMonths.map(month => {
+      // Build fee type descriptions
+      const monthlyFeeDescriptions = formData.selectedMonths.map(month => {
         const structure = monthlyStructures.find(s => s.month === month)
         if (!structure) return month
         return `${month}: ${structure.fee_types.map(ft => `${ft.fee_type_name} (₹${ft.amount})`).join(', ')}`
       }).join('; ')
+
+      const selectedFeeTypeDescriptions = selectedFeeTypes.map(selected => 
+        `${selected.feeType.name} (₹${selected.feeType.amount} × ${selected.quantity} × ${formData.selectedMonths.length} months)`
+      ).join('; ')
+
+      const allFeeDescriptions = [monthlyFeeDescriptions, selectedFeeTypeDescriptions].filter(Boolean).join(' | ')
 
       // Create entry in database
       const dbEntry = await createFeeEntry({
@@ -229,7 +273,7 @@ export default function SharedFeeEntryForm({ mode, onEntryCreated, onClose }: Sh
         fee: totalFee,
         total_fee: totalFee,
         payment_type: formData.paymentType,
-        remarks: `${formData.remarks}\nMonthly Fee Structure: ${feeTypeNames}`.trim(),
+        remarks: `${formData.remarks}\nFee Structure: ${allFeeDescriptions}`.trim(),
         created_by: user?.id
       })
 
@@ -245,10 +289,15 @@ export default function SharedFeeEntryForm({ mode, onEntryCreated, onClose }: Sh
         paymentType: dbEntry.payment_type,
         remarks: dbEntry.remarks,
         date: new Date().toLocaleDateString(),
-        feeTypes: formData.selectedMonths.map(month => {
-          const structure = monthlyStructures.find(s => s.month === month)
-          return structure ? `${month}: ${structure.fee_types.map(ft => ft.fee_type_name).join(', ')}` : month
-        })
+        feeTypes: [
+          ...formData.selectedMonths.map(month => {
+            const structure = monthlyStructures.find(s => s.month === month)
+            return structure ? `${month}: ${structure.fee_types.map(ft => ft.fee_type_name).join(', ')}` : month
+          }),
+          ...selectedFeeTypes.map(selected => 
+            `${selected.feeType.name} (₹${selected.feeType.amount} × ${selected.quantity} × ${formData.selectedMonths.length} months)`
+          )
+        ]
       }
 
       // If payment type is "Request Payment", show the payment modal
@@ -420,83 +469,133 @@ export default function SharedFeeEntryForm({ mode, onEntryCreated, onClose }: Sh
               ))}
             </select>
           </div>
-        </div>
-
-
-
-        {/* Monthly Fee Structure Selection */}
-        {useMonthlyStructures && (
-          <div className="mt-6">
-            <label className="block text-sm font-medium mb-3">Select Months with Predefined Fee Structure</label>
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-              {monthlyStructures.map(structure => (
-                <button
-                  key={structure.id}
-                  type="button"
-                  onClick={() => handleMonthToggle(structure.month)}
-                  className={`px-4 py-2 border rounded-md transition-colors text-sm relative ${
-                    formData.selectedMonths.includes(structure.month)
-                      ? 'bg-gray-800 text-white border-gray-800'
-                      : 'border-gray-300 text-gray-700 hover:bg-gray-50'
-                  }`}
-                >
-                  <div className="text-center">
-                    <div className="font-medium">{structure.month}</div>
-                    <div className="text-xs opacity-75">
-                      ₹{structure.fee_types.reduce((sum, ft) => sum + ft.amount, 0)}
-                    </div>
-                    <div className="text-xs opacity-60">
-                      {structure.fee_types.length} fees
-                    </div>
-                  </div>
-                </button>
-              ))}
+                    <div className='relative' data-month-dropdown>
+            <label className="block text-sm font-medium mb-2">Select Months</label>
+            
+            <div className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-gray-400 cursor-pointer bg-white flex items-center justify-between" onClick={() => setShowMonthDropdown(!showMonthDropdown)}>
+               <span className="text-gray-700">Select Months</span>
+               <svg className={`w-4 h-4 transition-transform text-gray-400 ${showMonthDropdown ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+               </svg>
             </div>
-            {formData.selectedMonths.length > 0 && (
-              <div className="mt-3 text-sm text-gray-600">
-                Selected: {formData.selectedMonths.join(', ')}
+            
+            {showMonthDropdown && (
+              <div className="absolute top-full left-0 right-0 mt-1 border border-gray-300 rounded-md bg-white shadow-lg z-10 max-h-48 overflow-y-auto">
+                {months.map(month => (
+                  <label key={month} className="flex items-center space-x-2 p-2 hover:bg-gray-50 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={formData.selectedMonths.includes(month)}
+                      onChange={() => handleMonthToggle(month)}
+                      className="rounded border-gray-300 text-gray-900 focus:ring-gray-500"
+                    />
+                    <span className="text-sm text-gray-700">{month}</span>
+                  </label>
+                ))}
               </div>
             )}
           </div>
-        )}
 
-
+          {/* Fee Types Dropdown */}
+          <div className='relative' data-fee-type-dropdown>
+            <label className="block text-sm font-medium mb-2">Select Fee Types</label>
+            
+            <div className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-gray-400 cursor-pointer bg-white flex items-center justify-between" onClick={() => setShowFeeTypeDropdown(!showFeeTypeDropdown)}>
+               <span className="text-gray-700">Select Fee Types</span>
+               <svg className={`w-4 h-4 transition-transform text-gray-400 ${showFeeTypeDropdown ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+               </svg>
+            </div>
+            
+            {showFeeTypeDropdown && (
+              <div className="absolute top-full left-0 right-0 mt-1 border border-gray-300 rounded-md bg-white shadow-lg z-10 max-h-48 overflow-y-auto">
+                {feeTypes.map(feeType => (
+                  <label key={feeType.id} className="flex items-center space-x-2 p-2 hover:bg-gray-50 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={selectedFeeTypes.some(selected => selected.feeType.id === feeType.id)}
+                      onChange={() => handleFeeTypeToggle(feeType)}
+                      className="rounded border-gray-300 text-gray-900 focus:ring-gray-500"
+                    />
+                    <div className="flex-1 flex justify-between items-center">
+                      <span className="text-sm text-gray-700">{feeType.name}</span>
+                      <span className="text-sm font-medium text-green-600">₹{feeType.amount}</span>
+                    </div>
+                  </label>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
 
 
         {/* Selected Months Fee Summary */}
-        {useMonthlyStructures && formData.selectedMonths.length > 0 && (
+        {(formData.selectedMonths.length > 0 || selectedFeeTypes.length > 0) && (
           <div className="mt-6 p-4 bg-gray-50 rounded-lg">
-            <h3 className="font-medium text-gray-900 mb-3">Selected Months Fee Breakdown:</h3>
-            <div className="space-y-3">
+            <h3 className="font-medium text-gray-900 mb-4">Fee Breakdown:</h3>
+            <div className="space-y-4">
+              {/* Monthly Fee Structures */}
               {formData.selectedMonths.map(month => {
                 const structure = monthlyStructures.find(s => s.month === month)
-                if (!structure) return null
+                if (!structure || structure.fee_types.length === 0) return null
                 
                 return (
-                  <div key={month} className="border-b pb-3 last:border-b-0">
-                    <div className="flex justify-between items-center mb-2">
-                      <span className="font-medium text-gray-900">{month}</span>
-                      <span className="text-lg font-bold text-blue-600">
-                        ₹{structure.fee_types.reduce((sum, ft) => sum + ft.amount, 0)}
-                      </span>
-                    </div>
+                  <div key={month} className="border border-gray-200 rounded-lg p-3 bg-white">
+                    <div className="font-semibold text-gray-900 mb-2">{month}</div>
                     <div className="space-y-1">
                       {structure.fee_types.map((feeType, index) => (
-                        <div key={index} className="flex justify-between items-center text-sm">
+                        <div key={index} className="flex justify-between items-center text-sm py-1">
                           <span className="text-gray-700">
                             {feeType.fee_type_name}
                             {feeType.is_required && <span className="text-red-600 ml-1">*</span>}
                           </span>
-                          <span className="font-medium">₹{feeType.amount}</span>
+                          <span className="font-medium text-green-600">₹{feeType.amount}</span>
                         </div>
                       ))}
+                    </div>
+                    <div className="border-t mt-2 pt-2">
+                      <div className="flex justify-between items-center text-sm font-medium">
+                        <span className="text-gray-700">Subtotal:</span>
+                        <span className="text-blue-600">₹{structure.fee_types.reduce((sum, ft) => sum + ft.amount, 0)}</span>
+                      </div>
                     </div>
                   </div>
                 )
               })}
-              <div className="border-t pt-3 mt-3">
+
+              {/* Selected Fee Types */}
+              {selectedFeeTypes.length > 0 && (
+                <div className="border border-gray-200 rounded-lg p-3 bg-white">
+                  <div className="font-semibold text-gray-900 mb-2">Additional Fees for {formData.selectedMonths.join(', ')}</div>
+                  <div className="space-y-1">
+                    {selectedFeeTypes.map((selected, index) => (
+                      <div key={index} className="flex justify-between items-center text-sm py-1">
+                        <span className="text-gray-700">
+                          {selected.feeType.name}
+                        </span>
+                        <span className="font-medium text-green-600">
+                          ₹{selected.feeType.amount * selected.quantity * formData.selectedMonths.length}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="border-t mt-2 pt-2">
+                    <div className="flex justify-between items-center text-sm font-medium">
+                      <span className="text-gray-700">Subtotal:</span>
+                      <span className="text-blue-600">
+                        ₹{selectedFeeTypes.reduce((sum, selected) => 
+                          sum + (selected.feeType.amount * selected.quantity * formData.selectedMonths.length), 0
+                        )}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Total Amount */}
+              <div className="border-t pt-4 mt-4">
                 <div className="flex justify-between items-center">
-                  <span className="font-bold text-gray-900">Total Amount:</span>
+                  <span className="text-lg font-bold text-gray-900">Total Amount:</span>
                   <span className="text-xl font-bold text-blue-600">
                     ₹{totalFee.toFixed(2)}
                   </span>

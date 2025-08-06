@@ -1,6 +1,8 @@
 import React, { useState, useMemo } from 'react'
 import { useAuth } from '@/lib/contexts/AuthContext'
+import { updatePaymentStatus } from '@/lib/database'
 import PaymentConfirmationModal from './PaymentConfirmationModal'
+import EditFeeEntryModal from './EditFeeEntryModal'
 
 interface FeeEntry {
   id: string
@@ -31,6 +33,7 @@ interface FeeEntry {
     email: string
     role: string
   }
+  status?: 'pending' | 'success' | 'failed' | 'refunded'
 }
 
 interface FeeTableProps {
@@ -49,10 +52,16 @@ export default function FeeTable({ entries, showDeleteButton = false, onDelete, 
   const [selectedPaymentStatus, setSelectedPaymentStatus] = useState('')
   const [showConfirmationModal, setShowConfirmationModal] = useState(false)
   const [selectedEntry, setSelectedEntry] = useState<FeeEntry | null>(null)
+  const [editingStatusId, setEditingStatusId] = useState<string | null>(null)
+  const [editingStatusValue, setEditingStatusValue] = useState<'pending' | 'success' | 'failed' | 'refunded' | null>(null)
+  const [editingEntry, setEditingEntry] = useState<FeeEntry | null>(null)
+  const [showEditModal, setShowEditModal] = useState(false)
+  const [updatingStatus, setUpdatingStatus] = useState<string | null>(null)
 
   // Check if user is admin (can see actions)
   const isAdmin = user?.role === 'super_admin' || user?.role === 'colony_admin' || user?.role === 'block_manager'
   const canConfirmPayments = user?.role === 'super_admin' || user?.role === 'colony_admin' || user?.role === 'block_manager'
+  const canChangeStatus = user?.role === 'super_admin' || user?.role === 'colony_admin' || user?.role === 'block_manager'
 
   // Get unique blocks and flats for filter options
   const uniqueBlocks = useMemo(() => {
@@ -103,6 +112,53 @@ export default function FeeTable({ entries, showDeleteButton = false, onDelete, 
     setShowConfirmationModal(false)
     setSelectedEntry(null)
     onPaymentConfirmed?.()
+  }
+
+  const getStatus = (entry: FeeEntry) => {
+    if (entry.status) return entry.status
+    if (
+      entry.paymentType?.toLowerCase() === 'cash' ||
+      entry.paymentType?.toLowerCase() === 'request payment'
+    ) {
+      return 'pending'
+    }
+    return 'success'
+  }
+
+  const handleStatusClick = (id: string, currentStatus: string) => {
+    if (!canChangeStatus) return // Only admins can change status
+    setEditingStatusId(id)
+    setEditingStatusValue(currentStatus as any)
+  }
+  const handleStatusChange = async (id: string, newStatus: 'pending' | 'success' | 'failed' | 'refunded') => {
+    if (!canChangeStatus || !user) return
+
+    try {
+      setUpdatingStatus(id)
+      await updatePaymentStatus(id, newStatus, user.id)
+      
+      // Update local state
+      const entryIdx = entries.findIndex(e => e.id === id)
+      if (entryIdx !== -1) {
+        entries[entryIdx].status = newStatus
+        entries[entryIdx].payment_confirmed = newStatus === 'success'
+        entries[entryIdx].payment_confirmed_by = newStatus === 'success' ? user.id : undefined
+        entries[entryIdx].payment_confirmed_at = newStatus === 'success' ? new Date().toISOString() : undefined
+      }
+      
+      setEditingStatusId(null)
+      setEditingStatusValue(null)
+      
+      // Trigger refresh if callback provided
+      if (onPaymentConfirmed) {
+        onPaymentConfirmed()
+      }
+    } catch (error) {
+      console.error('Error updating payment status:', error)
+      alert('Error updating payment status. Please try again.')
+    } finally {
+      setUpdatingStatus(null)
+    }
   }
 
   if (entries.length === 0) {
@@ -299,11 +355,49 @@ export default function FeeTable({ entries, showDeleteButton = false, onDelete, 
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                      entry.payment_confirmed ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'
-                    }`}>
-                      {entry.payment_confirmed ? 'Confirmed' : 'Pending'}
-                    </span>
+                    {editingStatusId === entry.id ? (
+                      <select
+                        value={editingStatusValue || getStatus(entry)}
+                        onChange={e => handleStatusChange(entry.id, e.target.value as any)}
+                        onBlur={() => setEditingStatusId(null)}
+                        className="px-2 py-1 text-xs rounded border border-gray-300"
+                        autoFocus
+                        disabled={updatingStatus === entry.id}
+                      >
+                        <option value="pending">Pending</option>
+                        <option value="success">Success</option>
+                        <option value="failed">Failed</option>
+                        <option value="refunded">Refunded</option>
+                      </select>
+                    ) : (
+                      <span
+                        className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                          canChangeStatus ? 'cursor-pointer' : 'cursor-default'
+                        } ${
+                          getStatus(entry) === 'success'
+                            ? 'bg-green-100 text-green-800'
+                            : getStatus(entry) === 'pending'
+                            ? 'bg-yellow-100 text-yellow-800'
+                            : getStatus(entry) === 'failed'
+                            ? 'bg-red-100 text-red-800'
+                            : 'bg-gray-100 text-gray-800'
+                        } ${updatingStatus === entry.id ? 'opacity-50' : ''}`}
+                        onClick={() => handleStatusClick(entry.id, getStatus(entry))}
+                        title={canChangeStatus ? "Click to change status" : "Status (read-only)"}
+                      >
+                        {updatingStatus === entry.id ? (
+                          <span className="flex items-center">
+                            <svg className="animate-spin -ml-1 mr-2 h-3 w-3 text-current" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            Updating...
+                          </span>
+                        ) : (
+                          getStatus(entry).charAt(0).toUpperCase() + getStatus(entry).slice(1)
+                        )}
+                      </span>
+                    )}
                   </td>
                   <td className="px-6 py-4 text-sm text-gray-900 max-w-xs truncate">
                     {entry.remarks || '-'}
@@ -311,14 +405,15 @@ export default function FeeTable({ entries, showDeleteButton = false, onDelete, 
                   {isAdmin && (
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                       <div className="flex space-x-2">
-                        {canConfirmPayments && (
-                          <button
-                            onClick={() => handleConfirmPayment(entry)}
-                            className="text-blue-600 hover:text-blue-800 text-sm font-medium"
-                          >
-                            {entry.payment_confirmed ? 'Unconfirm' : 'Confirm'}
-                          </button>
-                        )}
+                        <button
+                          onClick={() => {
+                            setEditingEntry(entry)
+                            setShowEditModal(true)
+                          }}
+                          className="text-blue-600 hover:text-blue-800 text-sm font-medium"
+                        >
+                          Edit
+                        </button>
                         {showDeleteButton && onDelete && (
                           <button
                             onClick={() => onDelete(entry.id)}
@@ -364,6 +459,38 @@ export default function FeeTable({ entries, showDeleteButton = false, onDelete, 
             confirmed_by_user: selectedEntry.confirmed_by_user
           }}
           onPaymentConfirmed={handlePaymentConfirmed}
+        />
+      )}
+
+      {/* Edit Fee Entry Modal */}
+      {editingEntry && (
+        <EditFeeEntryModal
+          isOpen={showEditModal}
+          onClose={() => {
+            setShowEditModal(false)
+            setEditingEntry(null)
+          }}
+          feeEntry={{
+            id: editingEntry.id,
+            block: editingEntry.block,
+            member_name: editingEntry.memberName,
+            flat_number: editingEntry.flatNumber,
+            months: editingEntry.months,
+            fee: parseFloat(editingEntry.fee),
+            total_fee: parseFloat(editingEntry.totalFee),
+            payment_type: editingEntry.paymentType,
+            remarks: editingEntry.remarks,
+            created_at: editingEntry.date,
+            payment_confirmed: editingEntry.payment_confirmed,
+            payment_confirmed_by: editingEntry.payment_confirmed_by,
+            payment_confirmed_at: editingEntry.payment_confirmed_at,
+            created_by: editingEntry.created_by
+          }}
+          onEntryUpdated={() => {
+            if (onPaymentConfirmed) {
+              onPaymentConfirmed()
+            }
+          }}
         />
       )}
     </>
