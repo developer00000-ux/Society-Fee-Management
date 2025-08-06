@@ -434,6 +434,34 @@ export async function getMemberByUserId(userId: string) {
       return null
     }
 
+    // Check if member data is actually present
+    if (!member || Object.keys(member).length === 0) {
+      console.log('No member found for user ID:', userId)
+      
+      // Try to ensure member record exists
+      try {
+        const response = await fetch('/api/auth/ensure-member', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ userId }),
+        })
+        
+        if (response.ok) {
+          const result = await response.json()
+          if (result.success && result.member) {
+            console.log('Member record created/retrieved:', result.member)
+            return result.member
+          }
+        }
+      } catch (ensureError) {
+        console.error('Error ensuring member record:', ensureError)
+      }
+      
+      return null
+    }
+
     return member
   } catch (error) {
     console.error('Error in getMemberByUserId:', error)

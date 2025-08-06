@@ -201,6 +201,7 @@ export interface FeeEntry {
   fee: number
   total_fee: number
   payment_type: string
+  date_of_payment?: string
   remarks: string
   created_at: string
   payment_confirmed?: boolean

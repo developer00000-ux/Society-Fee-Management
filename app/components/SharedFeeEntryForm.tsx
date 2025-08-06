@@ -15,6 +15,7 @@ interface LocalFeeEntry {
   fee: string
   totalFee: string
   paymentType: string
+  dateOfPayment: string
   remarks: string
   date: string
   feeTypes?: string[]
@@ -58,6 +59,7 @@ export default function SharedFeeEntryForm({ mode, onEntryCreated, onClose }: Sh
     flatNumber: '',
     selectedMonths: [] as string[],
     paymentType: '',
+    dateOfPayment: '',
     remarks: ''
   })
 
@@ -137,11 +139,21 @@ export default function SharedFeeEntryForm({ mode, onEntryCreated, onClose }: Sh
 
   const autoFillFormForResident = async () => {
     try {
-      if (!user?.id) return
+      if (!user?.id) {
+        console.log('No user ID available for auto-fill')
+        return
+      }
+
+      console.log('Attempting to auto-fill form for user:', user.id)
 
       // Get member data for the current user
       const member = await getMemberByUserId(user.id)
-      if (!member) return
+      console.log('Member data retrieved:', member)
+      
+      if (!member) {
+        console.log('No member record found for user ID:', user.id)
+        return
+      }
 
       // Get building data
       let buildingName = ''
@@ -169,6 +181,7 @@ export default function SharedFeeEntryForm({ mode, onEntryCreated, onClose }: Sh
         flatNumber: flatNumber
       }))
       setAutoFilled(true)
+      console.log('Form auto-filled successfully')
     } catch (error) {
       console.error('Error auto-filling form for resident:', error)
     }
@@ -251,19 +264,6 @@ export default function SharedFeeEntryForm({ mode, onEntryCreated, onClose }: Sh
     try {
       const totalFee = calculateTotalFee()
       
-      // Build fee type descriptions
-      const monthlyFeeDescriptions = formData.selectedMonths.map(month => {
-        const structure = monthlyStructures.find(s => s.month === month)
-        if (!structure) return month
-        return `${month}: ${structure.fee_types.map(ft => `${ft.fee_type_name} (₹${ft.amount})`).join(', ')}`
-      }).join('; ')
-
-      const selectedFeeTypeDescriptions = selectedFeeTypes.map(selected => 
-        `${selected.feeType.name} (₹${selected.feeType.amount} × ${selected.quantity} × ${formData.selectedMonths.length} months)`
-      ).join('; ')
-
-      const allFeeDescriptions = [monthlyFeeDescriptions, selectedFeeTypeDescriptions].filter(Boolean).join(' | ')
-
       // Create entry in database
       const dbEntry = await createFeeEntry({
         block: formData.block,
@@ -273,7 +273,8 @@ export default function SharedFeeEntryForm({ mode, onEntryCreated, onClose }: Sh
         fee: totalFee,
         total_fee: totalFee,
         payment_type: formData.paymentType,
-        remarks: `${formData.remarks}\nFee Structure: ${allFeeDescriptions}`.trim(),
+        date_of_payment: formData.dateOfPayment,
+        remarks: formData.remarks,
         created_by: user?.id
       })
 
@@ -287,6 +288,7 @@ export default function SharedFeeEntryForm({ mode, onEntryCreated, onClose }: Sh
         fee: totalFee.toString(),
         totalFee: totalFee.toString(),
         paymentType: dbEntry.payment_type,
+        dateOfPayment: formData.dateOfPayment,
         remarks: dbEntry.remarks,
         date: new Date().toLocaleDateString(),
         feeTypes: [
@@ -319,6 +321,7 @@ export default function SharedFeeEntryForm({ mode, onEntryCreated, onClose }: Sh
         flatNumber: '',
         selectedMonths: [],
         paymentType: '',
+        dateOfPayment: '',
         remarks: ''
       })
       setSelectedFeeTypes([])
@@ -468,6 +471,18 @@ export default function SharedFeeEntryForm({ mode, onEntryCreated, onClose }: Sh
                 <option key={type} value={type}>{type}</option>
               ))}
             </select>
+          </div>
+
+          {/* Date of Payment */}
+          <div>
+            <label className="block text-sm font-medium mb-2">Date of Payment</label>
+            <input
+              type="date"
+              value={formData.dateOfPayment}
+              onChange={(e) => handleInputChange('dateOfPayment', e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-gray-400"
+              required
+            />
           </div>
                     <div className='relative' data-month-dropdown>
             <label className="block text-sm font-medium mb-2">Select Months</label>
@@ -647,6 +662,7 @@ export default function SharedFeeEntryForm({ mode, onEntryCreated, onClose }: Sh
               flatNumber: '',
               selectedMonths: [],
               paymentType: '',
+              dateOfPayment: '',
               remarks: ''
             })
             setSelectedFeeTypes([])

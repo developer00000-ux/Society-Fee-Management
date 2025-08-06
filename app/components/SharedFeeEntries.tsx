@@ -98,7 +98,7 @@ export default function SharedFeeEntries({
         totalFee: dbEntry.total_fee.toString(),
         paymentType: dbEntry.payment_type,
         remarks: dbEntry.remarks,
-        date: new Date(dbEntry.created_at).toLocaleDateString(),
+        date: dbEntry.date_of_payment ? new Date(dbEntry.date_of_payment).toLocaleDateString() : new Date(dbEntry.created_at).toLocaleDateString(),
         status: dbEntry.status || 'pending',
         payment_confirmed: dbEntry.payment_confirmed || false,
         payment_confirmed_by: dbEntry.payment_confirmed_by,

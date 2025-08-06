@@ -19,22 +19,43 @@ function ResetPasswordContent() {
   const searchParams = useSearchParams()
 
   useEffect(() => {
-    const checkSession = async () => {
+    const checkResetToken = async () => {
       try {
-        const { data: { session }, error } = await supabase.auth.getSession()
+        // Get tokens from hash fragment (Supabase recovery links use hash)
+        const hash = window.location.hash.substring(1) // Remove the # symbol
+        const params = new URLSearchParams(hash)
         
-        if (error) {
-          console.error('Error checking session:', error)
+        const accessToken = params.get('access_token')
+        const refreshToken = params.get('refresh_token')
+        const type = params.get('type')
+        
+        console.log('Hash params:', { accessToken: !!accessToken, refreshToken: !!refreshToken, type })
+        
+        if (!accessToken || type !== 'recovery') {
           setError('Invalid or expired reset link. Please request a new password reset.')
           setIsValidToken(false)
-        } else if (session) {
+          setIsCheckingToken(false)
+          return
+        }
+
+        // Set the session with the tokens from the hash
+        const { data, error } = await supabase.auth.setSession({
+          access_token: accessToken,
+          refresh_token: refreshToken || ''
+        })
+        
+        if (error) {
+          console.error('Error setting session:', error)
+          setError('Invalid or expired reset link. Please request a new password reset.')
+          setIsValidToken(false)
+        } else if (data.session) {
           setIsValidToken(true)
         } else {
           setError('Invalid or expired reset link. Please request a new password reset.')
           setIsValidToken(false)
         }
       } catch (error) {
-        console.error('Error checking session:', error)
+        console.error('Error checking reset token:', error)
         setError('Invalid or expired reset link. Please request a new password reset.')
         setIsValidToken(false)
       } finally {
@@ -42,7 +63,7 @@ function ResetPasswordContent() {
       }
     }
 
-    checkSession()
+    checkResetToken()
   }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -63,25 +84,23 @@ function ResetPasswordContent() {
     setMessage('')
 
     try {
-      const response = await fetch('/api/auth/update-password', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ password }),
+      // Update password using Supabase auth
+      const { error: updateError } = await supabase.auth.updateUser({
+        password: password
       })
       
-      const data = await response.json()
-      
-      if (response.ok) {
+      if (updateError) {
+        setError(updateError.message || 'Failed to update password')
+      } else {
         setMessage('Password updated successfully! You will be redirected to login page.')
+        
+        // Sign out the user after password update
+        await supabase.auth.signOut()
         
         // Redirect to login page after 2 seconds
         setTimeout(() => {
           router.push('/login')
         }, 2000)
-      } else {
-        setError(data.error || 'Failed to update password')
       }
     } catch (error) {
       setError(error instanceof Error ? error.message : 'Failed to update password')
