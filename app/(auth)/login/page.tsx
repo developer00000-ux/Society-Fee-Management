@@ -193,7 +193,6 @@ export default function LoginPage() {
                 Forgot your password?
               </a>
             </div>
-           
           </div>
 
           <div>

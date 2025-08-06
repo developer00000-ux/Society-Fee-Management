@@ -351,7 +351,7 @@ export default function FeeTable({ entries, showDeleteButton = false, onDelete, 
                       entry.paymentType === 'Request Payment' ? 'bg-orange-100 text-orange-800' :
                       'bg-gray-100 text-gray-800'
                     }`}>
-                      {entry.paymentType}
+                      {entry.paymentType === 'Request Payment' ? 'Requested' : entry.paymentType}
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
