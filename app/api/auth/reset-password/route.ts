@@ -35,13 +35,23 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Create a client with anon key for password reset
+    const { createClient } = await import('@supabase/supabase-js')
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+    
+    if (!supabaseUrl || !supabaseAnonKey) {
+      return NextResponse.json(
+        { error: 'Missing Supabase configuration' },
+        { status: 500 }
+      )
+    }
+
+    const anonClient = createClient(supabaseUrl, supabaseAnonKey)
+
     // Send password reset email
-    const { error: resetError } = await serverClient.auth.admin.generateLink({
-      type: 'recovery',
-      email: email,
-      options: {
-        redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/reset-password`
-      }
+    const { error: resetError } = await anonClient.auth.resetPasswordForEmail(email, {
+      redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/reset-password`
     })
 
     if (resetError) {
